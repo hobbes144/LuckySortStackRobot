@@ -9,7 +9,9 @@ starting any stage.
 
 ## Current status
 
-- [ ] Stage 0: Lucky reconnaissance pass (plan §33). Write findings to `docs/LUCKY_API_NOTES.md`.
+- [x] Stage 0a: Lucky reconnaissance pass (plan §33) → `docs/LUCKY_API_NOTES.md`
+- [ ] Stage 0b: smoke test (`Panda.cs`) verified in editor; update VERIFY items in the notes
+- [ ] Stage 1: workspace (table, MuJoCo object pool per color × size, stack markers)
 - [ ] Milestone 1: single-object pick/place
 - [ ] Milestones 2–8 (see plan §24)
 
@@ -36,7 +38,27 @@ Update this checklist as milestones complete.
 
 ## Layout
 
-- `docs/` — plan and API notes
-- Lucky project files (scenes, assets, `Scripts/`) will be created by the Lucky Engine
-  editor in this folder; follow its generated conventions.
+- `docs/` — plan and API notes (read `LUCKY_API_NOTES.md` before touching engine code)
+- `LuckySortStack/` — the Lucky Engine project (LuckyEngine 2026.1.2, Franka Panda)
+  - `Assets/Scenes/Main.hscene` — start scene
+  - `Assets/Scripts/Client/Source/` — C# scripts (namespace `LuckySortStack`)
+  - `Assets/ContentVault/Robots/Panda/` — MJCF + motion graph
 - `Python/` — optional gRPC experiment runner (late stage only)
+
+## Build
+
+- Engine install: `C:\Users\nick_\Downloads\LuckyEngine-2026.1.2-Windows-x64\LuckyEngine-2026.1-Windows-x64`
+  (engine docs for agents: `Data/Resources/AgentDocs/`)
+- Compile check: `dotnet build LuckySortStack/Assets/Scripts/Client/LuckySortStack.csproj`
+  (output goes to `Assets/Scripts/Binaries`, which the editor hot-reloads)
+- The `.csproj` lists files explicitly. When adding a `.cs` file, add a `<Compile Include>` entry,
+  or regenerate with `Win-CreateScriptProjects.bat`.
+- Play mode and scene authoring happen in the editor; the user presses Play.
+
+## Key engine facts (details in docs/LUCKY_API_NOTES.md)
+
+- World is Y-up; IK targets are world metres, orientation in degrees.
+- Gripper = actuator `actuator8`, 255 open / 0 closed; set `.IK = false` first.
+- One `SetInputTrigger` per motion step; each trigger cancels the in-flight move.
+- Manipulables must be MuJoCo bodies. Runtime spawning is undocumented, so use a pre-authored object pool.
+- `Hazel.Random` can't be seeded; use `System.Random(seed)`.
