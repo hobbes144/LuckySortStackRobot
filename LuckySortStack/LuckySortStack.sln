@@ -1,0 +1,23 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LuckySortStack", "Assets\Scripts\Client\LuckySortStack.csproj", "{2B84CA0F-1752-BE15-00E6-2E3CEC529A7A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Dist|Any CPU = Dist|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2B84CA0F-1752-BE15-00E6-2E3CEC529A7A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2B84CA0F-1752-BE15-00E6-2E3CEC529A7A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2B84CA0F-1752-BE15-00E6-2E3CEC529A7A}.Dist|Any CPU.ActiveCfg = Dist|Any CPU
+		{2B84CA0F-1752-BE15-00E6-2E3CEC529A7A}.Dist|Any CPU.Build.0 = Dist|Any CPU
+		{2B84CA0F-1752-BE15-00E6-2E3CEC529A7A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2B84CA0F-1752-BE15-00E6-2E3CEC529A7A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

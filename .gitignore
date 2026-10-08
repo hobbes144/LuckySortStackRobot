@@ -1,0 +1,32 @@
+# Build output
+bin/
+obj/
+Binaries/
+Build/
+*.dll
+*.pdb
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Recordings / datasets (large)
+Recordings/
+Datasets/
+*.parquet
+*.mp4
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# OS
+Thumbs.db
+.DS_Store

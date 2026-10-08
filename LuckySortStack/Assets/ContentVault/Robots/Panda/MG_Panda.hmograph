@@ -1,0 +1,467 @@
+Model: 18414061149250941814
+0:
+  Nodes:
+    - ID: 17234011670002181332
+      Category: Motion
+      Name: Output
+      Color: [1, 0.501960814, 0.501960814, 1]
+      Type: Blueprint
+      Inputs:
+        - ID: 5928440281298659758
+          Name: Joint States
+          Type: JointStates
+          Storage: Value
+          Value: {Type: int64, Value: 0}
+      Outputs:
+        []
+    - ID: 3314652964538942897
+      Category: Motion
+      Name: Rest Pose
+      Description: Rest Pose
+      Color: [0.211764723, 0.811764777, 0.568627477, 1]
+      Type: Blueprint
+      Inputs:
+        []
+      Outputs:
+        - ID: 2512067252649815553
+          Name: Joint States
+          Type: JointStates
+          Storage: Value
+          Value: {Type: int64, Value: 0}
+    - ID: 5697730257661626664
+      Category: Motion
+      Name: Current Pose
+      Description: Current Pose
+      Color: [0.211764723, 0.811764777, 0.568627477, 1]
+      Type: Blueprint
+      Inputs:
+        []
+      Outputs:
+        - ID: 13571265276589315980
+          Name: Joint States
+          Type: JointStates
+          Storage: Value
+          Value: {Type: int64, Value: 0}
+    - ID: 10262533567255646200
+      Category: Input
+      Name: Input
+      Color: [0.784313798, 0.784313798, 0.784313798, 1]
+      Type: Blueprint
+      Inputs:
+        []
+      Outputs:
+        - ID: 11913305997646849162
+          Name: Start
+          Type: Flow
+          Storage: Value
+          Value: {Type: void, Value: "null"}
+    - ID: 383381126141183614
+      Category: Input
+      Name: Input
+      Color: [0.576470613, 0.886274576, 0.290196091, 1]
+      Type: Blueprint
+      Inputs:
+        []
+      Outputs:
+        - ID: 17908628784124573268
+          Name: Duration
+          Type: Float
+          Storage: Value
+          Value: {Type: float, Value: 3}
+    - ID: 11423223257222881624
+      Category: Math
+      Name: Min Jerk Curve
+      Description: Min Jerk Curve
+      Color: [0.576470613, 0.886274576, 0.290196091, 1]
+      Type: Blueprint
+      Inputs:
+        - ID: 15357671419624353786
+          Name: Reset
+          Type: Flow
+          Storage: Value
+          Value:
+            Type: Object
+            Value:
+              ClassName: TFlow
+              Members: ~
+        - ID: 8653377324867166141
+          Name: Duration
+          Type: Float
+          Storage: Value
+          Value: {Type: void, Value: "null"}
+      Outputs:
+        - ID: 17473852420391803017
+          Name: Alpha
+          Type: Float
+          Storage: Value
+          Value: {Type: float, Value: 0}
+    - ID: 2883850506738090260
+      Category: Motion
+      Name: Stored Pose
+      Description: Stored Pose
+      Color: [0.211764723, 0.811764777, 0.568627477, 1]
+      Type: Blueprint
+      Inputs:
+        - ID: 7063731680056310822
+          Name: Initial Joint States
+          Type: JointStates
+          Storage: Value
+          Value: {Type: void, Value: "null"}
+        - ID: 5765055868572412365
+          Name: Store Joint States
+          Type: JointStates
+          Storage: Value
+          Value: {Type: void, Value: "null"}
+        - ID: 2969309887710761119
+          Name: Reset
+          Type: Flow
+          Storage: Value
+          Value:
+            Type: Object
+            Value:
+              ClassName: TFlow
+              Members: ~
+        - ID: 2233721534462828886
+          Name: Store
+          Type: Flow
+          Storage: Value
+          Value:
+            Type: Object
+            Value:
+              ClassName: TFlow
+              Members: ~
+      Outputs:
+        - ID: 1175398175093392927
+          Name: Joint States
+          Type: JointStates
+          Storage: Value
+          Value: {Type: int64, Value: 0}
+    - ID: 626284535237250977
+      Category: Input
+      Name: Input
+      Color: [0.984313786, 0.78039223, 0.13333334, 1]
+      Type: Blueprint
+      Inputs:
+        []
+      Outputs:
+        - ID: 7857871663585967434
+          Name: Target_Position
+          Type: Vec3
+          Storage: Value
+          Value:
+            Type: Object
+            Value:
+              ClassName: vec<3,float,0>
+              Members:
+                x: {Type: float, Value: 0}
+                y: {Type: float, Value: 0}
+                z: {Type: float, Value: 0}
+    - ID: 10799570862583811563
+      Category: Input
+      Name: Input
+      Color: [0.862745166, 0.188235313, 0.188235313, 1]
+      Type: Blueprint
+      Inputs:
+        []
+      Outputs:
+        - ID: 5852654250999933781
+          Name: Solve_Orientation
+          Type: Bool
+          Storage: Value
+          Value: {Type: bool, Value: true}
+    - ID: 957335781190893480
+      Category: Input
+      Name: Input
+      Color: [0.984313786, 0.78039223, 0.13333334, 1]
+      Type: Blueprint
+      Inputs:
+        []
+      Outputs:
+        - ID: 10700603399056813346
+          Name: Target_Orientation
+          Type: Vec3
+          Storage: Value
+          Value:
+            Type: Object
+            Value:
+              ClassName: vec<3,float,0>
+              Members:
+                x: {Type: float, Value: 0}
+                y: {Type: float, Value: 0}
+                z: {Type: float, Value: 0}
+    - ID: 10441159859235246520
+      Category: Input
+      Name: Input
+      Color: [0.984313786, 0.78039223, 0.13333334, 1]
+      Type: Blueprint
+      Inputs:
+        []
+      Outputs:
+        - ID: 9514546584173893699
+          Name: Pole_Target
+          Type: Vec3
+          Storage: Value
+          Value:
+            Type: Object
+            Value:
+              ClassName: vec<3,float,0>
+              Members:
+                x: {Type: float, Value: 0}
+                y: {Type: float, Value: 0}
+                z: {Type: float, Value: 0}
+    - ID: 9851419011150551289
+      Category: Input
+      Name: Input
+      Color: [0.576470613, 0.886274576, 0.290196091, 1]
+      Type: Blueprint
+      Inputs:
+        []
+      Outputs:
+        - ID: 18401182182128079891
+          Name: Pole_Weight
+          Type: Float
+          Storage: Value
+          Value: {Type: float, Value: 0}
+    - ID: 16708269739575673253
+      Category: Input
+      Name: Input
+      Color: [0.862745166, 0.188235313, 0.188235313, 1]
+      Type: Blueprint
+      Inputs:
+        []
+      Outputs:
+        - ID: 2922660761790351101
+          Name: High_Accuracy
+          Type: Bool
+          Storage: Value
+          Value: {Type: bool, Value: false}
+    - ID: 15463951597164253729
+      Category: Input
+      Name: Input
+      Color: [0.862745166, 0.188235313, 0.188235313, 1]
+      Type: Blueprint
+      Inputs:
+        []
+      Outputs:
+        - ID: 2776602751620965864
+          Name: Tracking_Mode
+          Type: Bool
+          Storage: Value
+          Value: {Type: bool, Value: false}
+    - ID: 13148205504168810000
+      Category: Inverse Kinematics
+      Name: LimbIK
+      Description: LimbIK
+      Color: [1, 1, 0, 1]
+      Type: Blueprint
+      Inputs:
+        - ID: 16615366854482823484
+          Name: Joint States
+          Type: JointStates
+          Storage: Value
+          Value: {Type: int64, Value: 0}
+        - ID: 2464955722420246354
+          Name: Target Position
+          Type: Vec3
+          Storage: Value
+          Value: {Type: string, Value: Target_Position}
+        - ID: 7277063397284678639
+          Name: Solve Orientation
+          Type: Bool
+          Storage: Value
+          Value: {Type: void, Value: "null"}
+        - ID: 17343447657346758425
+          Name: Target Orientation
+          Type: Vec3
+          Storage: Value
+          Value: {Type: void, Value: "null"}
+        - ID: 15976790397397575475
+          Name: Pole Target
+          Type: Vec3
+          Storage: Value
+          Value: {Type: void, Value: "null"}
+        - ID: 8662783734113580250
+          Name: Pole Weight
+          Type: Float
+          Storage: Value
+          Value: {Type: void, Value: "null"}
+        - ID: 4980189730291992054
+          Name: Chain Root
+          Type: BodyOrSite
+          Storage: Value
+          Value:
+            Type: Object
+            Value:
+              ClassName: TBodyOrSite
+              Members:
+                Value: {Type: string, Value: <none>}
+        - ID: 16598235076779915860
+          Name: End Effector
+          Type: BodyOrSite
+          Storage: Value
+          Value:
+            Type: Object
+            Value:
+              ClassName: TEndEffector
+              Members:
+                Value: {Type: string, Value: grasp_site}
+        - ID: 7134019093468731218
+          Name: High Accuracy
+          Type: Bool
+          Storage: Value
+          Value: {Type: void, Value: "null"}
+        - ID: 3118201671740143697
+          Name: Tracking Mode
+          Type: Bool
+          Storage: Value
+          Value: {Type: void, Value: "null"}
+      Outputs:
+        - ID: 16929877591773931986
+          Name: Joint States
+          Type: JointStates
+          Storage: Value
+          Value: {Type: int64, Value: 0}
+    - ID: 17659354660029891593
+      Category: Blend
+      Name: Joint States Blend
+      Description: Joint States Blend
+      Color: [1, 1, 0, 1]
+      Type: Blueprint
+      Inputs:
+        - ID: 1098767789393852740
+          Name: Joint States A
+          Type: JointStates
+          Storage: Value
+          Value: {Type: int64, Value: 0}
+        - ID: 10227772874692868708
+          Name: Joint States B
+          Type: JointStates
+          Storage: Value
+          Value: {Type: void, Value: "null"}
+        - ID: 7697320637871120927
+          Name: Alpha
+          Type: Float
+          Storage: Value
+          Value: {Type: void, Value: "null"}
+      Outputs:
+        - ID: 15485726210190251191
+          Name: Joint States
+          Type: JointStates
+          Storage: Value
+          Value: {Type: int64, Value: 0}
+  Links:
+    - ID: 17629003180849655217
+      StartPinID: 2512067252649815553
+      EndPinID: 7063731680056310822
+      Color: [1, 1, 0, 1]
+    - ID: 7146960440934429835
+      StartPinID: 13571265276589315980
+      EndPinID: 5765055868572412365
+      Color: [1, 1, 0, 1]
+    - ID: 4446329291829006543
+      StartPinID: 11913305997646849162
+      EndPinID: 15357671419624353786
+      Color: [0.784313798, 0.784313798, 0.784313798, 1]
+    - ID: 2279127524018869385
+      StartPinID: 11913305997646849162
+      EndPinID: 2233721534462828886
+      Color: [0.784313798, 0.784313798, 0.784313798, 1]
+    - ID: 6544176360218062279
+      StartPinID: 17908628784124573268
+      EndPinID: 8653377324867166141
+      Color: [0.576470613, 0.886274576, 0.290196091, 1]
+    - ID: 10678993908969769905
+      StartPinID: 17473852420391803017
+      EndPinID: 7697320637871120927
+      Color: [0.576470613, 0.886274576, 0.290196091, 1]
+    - ID: 7463251748264845764
+      StartPinID: 1175398175093392927
+      EndPinID: 16615366854482823484
+      Color: [1, 1, 0, 1]
+    - ID: 3378047810575131020
+      StartPinID: 1175398175093392927
+      EndPinID: 1098767789393852740
+      Color: [1, 1, 0, 1]
+    - ID: 5375704847953669935
+      StartPinID: 7857871663585967434
+      EndPinID: 2464955722420246354
+      Color: [0.984313786, 0.78039223, 0.13333334, 1]
+    - ID: 5811414775691214734
+      StartPinID: 5852654250999933781
+      EndPinID: 7277063397284678639
+      Color: [0.862745166, 0.188235313, 0.188235313, 1]
+    - ID: 11315340326784897981
+      StartPinID: 10700603399056813346
+      EndPinID: 17343447657346758425
+      Color: [0.984313786, 0.78039223, 0.13333334, 1]
+    - ID: 5558708607981038268
+      StartPinID: 9514546584173893699
+      EndPinID: 15976790397397575475
+      Color: [0.984313786, 0.78039223, 0.13333334, 1]
+    - ID: 1257798651609962417
+      StartPinID: 18401182182128079891
+      EndPinID: 8662783734113580250
+      Color: [0.576470613, 0.886274576, 0.290196091, 1]
+    - ID: 13955296251334029792
+      StartPinID: 2922660761790351101
+      EndPinID: 7134019093468731218
+      Color: [0.862745166, 0.188235313, 0.188235313, 1]
+    - ID: 3315697291758957210
+      StartPinID: 2776602751620965864
+      EndPinID: 3118201671740143697
+      Color: [0.862745166, 0.188235313, 0.188235313, 1]
+    - ID: 6956896588678316483
+      StartPinID: 16929877591773931986
+      EndPinID: 10227772874692868708
+      Color: [1, 1, 0, 1]
+    - ID: 15040186866214688143
+      StartPinID: 15485726210190251191
+      EndPinID: 5928440281298659758
+      Color: [1, 1, 0, 1]
+  GraphState: "{\"nodes\":{\"node:10262533567255646200\":{\"location\":{\"x\":-76,\"y\":646}},\"node:10441159859235246520\":{\"location\":{\"x\":85,\"y\":540}},\"node:10799570862583811563\":{\"location\":{\"x\":85,\"y\":470}},\"node:11423223257222881624\":{\"location\":{\"x\":582,\"y\":686}},\"node:13148205504168810000\":{\"location\":{\"x\":448,\"y\":438}},\"node:15463951597164253729\":{\"location\":{\"x\":85,\"y\":750}},\"node:16708269739575673253\":{\"location\":{\"x\":85,\"y\":680}},\"node:17234011670002181332\":{\"location\":{\"x\":1144,\"y\":358}},\"node:17659354660029891593\":{\"location\":{\"x\":826,\"y\":338}},\"node:2883850506738090260\":{\"location\":{\"x\":123,\"y\":318}},\"node:3314652964538942897\":{\"location\":{\"x\":-90,\"y\":274}},\"node:383381126141183614\":{\"location\":{\"x\":319,\"y\":766}},\"node:5697730257661626664\":{\"location\":{\"x\":-98,\"y\":354}},\"node:626284535237250977\":{\"location\":{\"x\":278,\"y\":494}},\"node:957335781190893480\":{\"location\":{\"x\":265,\"y\":574}},\"node:9851419011150551289\":{\"location\":{\"x\":85,\"y\":610}}},\"selection\":null,\"view\":{\"scroll\":{\"x\":-206.67218017578125,\"y\":-71.0878448486328125},\"visible_rect\":{\"max\":{\"x\":1326.2943115234375,\"y\":1269.821533203125},\"min\":{\"x\":-383.728759765625,\"y\":-131.988983154296875}},\"zoom\":0.538589239120483398}}"
+GraphInputs:
+  Type: Object
+  Value:
+    ClassName: PropertySet
+    Members:
+      Duration: {Type: float, Value: 3}
+      High_Accuracy: {Type: bool, Value: false}
+      Pole_Target:
+        Type: Object
+        Value:
+          ClassName: vec<3,float,0>
+          Members:
+            x: {Type: float, Value: 0}
+            y: {Type: float, Value: 0}
+            z: {Type: float, Value: 0}
+      Pole_Weight: {Type: float, Value: 0}
+      Solve_Orientation: {Type: bool, Value: true}
+      Start: {Type: void, Value: "null"}
+      Target_Orientation:
+        Type: Object
+        Value:
+          ClassName: vec<3,float,0>
+          Members:
+            x: {Type: float, Value: 0}
+            y: {Type: float, Value: 0}
+            z: {Type: float, Value: 0}
+      Target_Position:
+        Type: Object
+        Value:
+          ClassName: vec<3,float,0>
+          Members:
+            x: {Type: float, Value: 0}
+            y: {Type: float, Value: 0}
+            z: {Type: float, Value: 0}
+      Tracking_Mode: {Type: bool, Value: false}
+GraphOutputs:
+  Type: Object
+  Value:
+    ClassName: PropertySet
+    Members: ~
+LocalVariables:
+  Type: Object
+  Value:
+    ClassName: PropertySet
+    Members: ~
+Prototype: CAAAAAAAAABNR19QYW5kYad30xUXNCRUdnNsqQ3ji/8JAAAA1zG4IgUAAAADAABAQOHipmACAAAABQC3dCbIJgAAAAgDdmVjPDMsZmxvYXQsMD4AA3gAA3kAA3oAAAAAAAAAAAAAAAAAfJeYZwUAAAADAAAAAEtvCB8CAAAABQHt8kaqAQAAAADDLisAJgAAAAgDdmVjPDMsZmxvYXQsMD4AA3gAA3kAA3oAAAAAAAAAAAAAAAAAbg+1HSYAAAAIA3ZlYzwzLGZsb2F0LDA+AAN4AAN5AAN6AAAAAAAAAAAAAAAAAAKWQIYCAAAABQABAAAAQ7me2QkAAAACAAAAAAAAAAAAAAAABgAAAHx3cfyxBQo5TwMALgAAAAAA2X5nryiJ6kF7ZxJPAAAAAACU5YJuWCHAlAdxh54AAAAAAP1z+c8UQXSvwX4FKAAAAAAAw84sXhBW0W0+z3e2AwAAAEO5ntkJAAAAAgAAAAAAAAAARjxR5BgAAAAIAUJvZHlPclNpdGUAAUluZGV4AAAAAACKr0P8GAAAAAgBQm9keU9yU2l0ZQABSW5kZXgADAAAAACgOhbbCYS4AYChEvUBAAAAUMR5MgkAAAACAAAAAAAAAAAAEQAAALEFCjlPAwAuQ7me2RRBdK/BfgUonSE3WgAoiepBe2cST0O5ntkUQXSvwX4FKCwh+3gAp3fTFRc0JFTt8kaqWCHAlAdxh54gVtxZBad30xUXNCRU7fJGqhRBdK/BfgUoShvhZQWnd9MVFzQkVNcxuCJYIcCUB3GHntcxuCICWCHAlAdxh54R7At2CYS4AYChEvUR7At2ABRBdK/BfgUoQ7me2RBW0W0+z3e2Q7me2QAUQXSvwX4FKEO5ntkJhLgBgKES9VDEeTIAp3fTFRc0JFRuD7UdEFbRbT7Pd7YhLBhHAqd30xUXNCRUS28IHxBW0W0+z3e2bpoQXwKnd9MVFzQkVMMuKwAQVtFtPs93tqZMe34Cp3fTFRc0JFS3dCbIEFbRbT7Pd7aiO2/zAqd30xUXNCRUfJeYZxBW0W0+z3e2fUSQEgKnd9MVFzQkVOHipmAQVtFtPs93tmQkAasCp3fTFRc0JFQClkCGEFbRbT7Pd7ZNmuAYAhBW0W0+z3e2Q7me2QmEuAGAoRL1izOBpAAJhLgBgKES9UO5ntkAAAAAAAAAAEO5ntkG
