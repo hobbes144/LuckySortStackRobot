@@ -20,6 +20,24 @@ namespace LuckySortStack
 		[Group("Waypoints")] [Units("m")]
 		public Vector3 WaypointB = new Vector3(0.50f, 0.20f, 0.20f);
 
+		[Group("Grasp Test")]
+		[Tooltip("Run a single pick/place of GraspObjectTag onto PlaceTargetTag instead of the waypoint loop.")]
+		public bool RunGraspTest = true;
+
+		[Group("Grasp Test")]
+		public string GraspObjectTag = "LS_Obj_Red_Large";
+
+		[Group("Grasp Test")]
+		public string PlaceTargetTag = "LS_StackTarget_Red";
+
+		[Group("Grasp Test")] [Units("m")] [Slider(0.03f, 0.30f)]
+		[Tooltip("Height above the object/target centre for approach and retreat.")]
+		public float HoverHeight = 0.12f;
+
+		[Group("Grasp Test")] [Units("m")] [Slider(-0.03f, 0.03f)]
+		[Tooltip("grasp_site offset from the object centre when grasping (0 = fingertips at centre).")]
+		public float GraspOffsetY = 0.0f;
+
 		[Group("Orientation")]
 		[Tooltip("Whether the IK also solves for end-effector orientation.")]
 		public bool SolveOrientation = true;
@@ -104,17 +122,73 @@ namespace LuckySortStack
 			if (m_StepElapsed < step.Duration) return;
 
 			step.OnEnd?.Invoke();
-			m_StepIndex   = (m_StepIndex + 1) % m_Cycle.Count;
 			m_StepStarted = false;
+			m_StepIndex++;
+			if (m_StepIndex < m_Cycle.Count) return;
+
+			if (RunGraspTest)
+			{
+				Log.Info("[Panda] Grasp test finished.");
+				m_Cycle.Clear();
+				return;
+			}
+			m_StepIndex = 0;
 		}
 
 		private void BuildCycle()
 		{
+			if (RunGraspTest)
+			{
+				BuildGraspTest();
+				return;
+			}
+
 			AddMove("Home", Home);
 			AddMove("A", WaypointA);
 			AddGripper("Close", GripperCloseValue);
 			AddMove("B", WaypointB);
 			AddGripper("Open", GripperOpenValue);
+		}
+
+		// Stage 1 check: one object, picked from the pool and set down on a stack marker.
+		// Positions are read once at OnCreate, before physics settles; good enough
+		// for a resting cube, and replaced by live state reads in the real controller.
+		private void BuildGraspTest()
+		{
+			Entity? obj    = FindEntityByTag(GraspObjectTag);
+			Entity? target = FindEntityByTag(PlaceTargetTag);
+			if (obj == null || target == null)
+			{
+				Log.Error($"[Panda] Grasp test needs '{GraspObjectTag}' and '{PlaceTargetTag}' in the scene.");
+				return;
+			}
+
+			Vector3 objPos    = obj.Transform.WorldTranslation;
+			float   halfEdge  = obj.Transform.Scale.Y * 0.5f;
+			Vector3 targetTop = target.Transform.WorldTranslation + new Vector3(0f, target.Transform.Scale.Y * 0.5f, 0f);
+			Vector3 grasp     = new Vector3(objPos.X, objPos.Y + GraspOffsetY, objPos.Z);
+			Vector3 place     = new Vector3(targetTop.X, targetTop.Y + halfEdge + 0.005f + GraspOffsetY, targetTop.Z);
+			Vector3 lift      = new Vector3(0f, HoverHeight, 0f);
+
+			AddGripper("Open", GripperOpenValue);
+			AddMove("Home", Home);
+			AddMove("AboveObject", grasp + lift);
+			AddMove("Grasp", grasp);
+			AddGripper("Close", GripperCloseValue);
+			AddMove("Lift", grasp + lift);
+			AddMove("AboveTarget", place + lift);
+			AddMove("Place", place);
+			AddGripper("Release", GripperOpenValue);
+			AddMove("Retreat", place + lift);
+			AddMove("Home", Home);
+			m_Cycle.Add(new Step { Label = "Report", OnStart = () => ReportObject(obj, targetTop), Duration = 0f });
+		}
+
+		private void ReportObject(Entity obj, Vector3 targetTop)
+		{
+			Vector3 p = obj.Transform.WorldTranslation;
+			float horizontalMm = Mathf.Sqrt((p.X - targetTop.X) * (p.X - targetTop.X) + (p.Z - targetTop.Z) * (p.Z - targetTop.Z)) * 1000f;
+			Log.Info($"[Panda] {obj.Tag} final={p} offset from target centre={horizontalMm:F1} mm, bottom height={(p.Y - obj.Transform.Scale.Y * 0.5f) * 1000f:F1} mm");
 		}
 
 		// One SetInputTrigger per step: each trigger cancels any in-flight motion.

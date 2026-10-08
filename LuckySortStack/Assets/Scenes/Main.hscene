@@ -352,6 +352,55 @@ Entities:
       Visible: true
     MujocoGeomComponent:
       ID: 40
+  - Entity: 1499193351374318106
+    Domain: Client
+    TagComponent:
+      Tag: LS_StackTarget_Green
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.4, 0.0105, 0.33]
+      Rotation: [0, 0, 0]
+      Scale: [0.075, 0.001, 0.075]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 15352265678760504885
+      Visible: true
+  - Entity: 1886731697358507238
+    Domain: Client
+    TagComponent:
+      Tag: LS_Obj_Blue_Tiny
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.6, 0.027, -0.17]
+      Rotation: [0, 0, 0]
+      Scale: [0.03, 0.03, 0.03]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 12013601712572768103
+      Visible: true
+    MujocoBoxColliderComponent:
+      Density: 500
+      Friction: [1, 0.1, 0.01]
+      Contype: 1
+      Conaffinity: 1
+      Condim: -1
+    MujocoJointComponent:
+      Type: "\x00"
+      Position: [0, 0, 0]
+      Axis: [0, 1, 0]
+      Limited: false
+      LimitMin: -3.14159
+      LimitMax: 3.14159
+      Stiffness: 0
+      Damping: 0
+      Armature: 0
+      JointId: -1
   - Entity: 1920362571190273963
     Domain: Client
     TagComponent:
@@ -432,6 +481,39 @@ Entities:
       Visible: true
     MujocoGeomComponent:
       ID: 74
+  - Entity: 2774237082626376551
+    Domain: Client
+    TagComponent:
+      Tag: LS_Obj_Blue_Large
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.33, 0.042, -0.17]
+      Rotation: [0, 0, 0]
+      Scale: [0.06, 0.06, 0.06]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 12013601712572768103
+      Visible: true
+    MujocoBoxColliderComponent:
+      Density: 500
+      Friction: [1, 0.1, 0.01]
+      Contype: 1
+      Conaffinity: 1
+      Condim: -1
+    MujocoJointComponent:
+      Type: "\x00"
+      Position: [0, 0, 0]
+      Axis: [0, 1, 0]
+      Limited: false
+      LimitMin: -3.14159
+      LimitMax: 3.14159
+      Stiffness: 0
+      Damping: 0
+      Armature: 0
+      JointId: -1
   - Entity: 2813804870229921068
     Domain: Client
     TagComponent:
@@ -490,6 +572,39 @@ Entities:
       SoftShadows: true
       LightSize: 0.5
       ShadowAmount: 1
+  - Entity: 3867774528689687305
+    Domain: Client
+    TagComponent:
+      Tag: LS_Obj_Red_Tiny
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.6, 0.027, -0.08]
+      Rotation: [0, 0, 0]
+      Scale: [0.03, 0.03, 0.03]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 16088827179207113330
+      Visible: true
+    MujocoBoxColliderComponent:
+      Density: 500
+      Friction: [1, 0.1, 0.01]
+      Contype: 1
+      Conaffinity: 1
+      Condim: -1
+    MujocoJointComponent:
+      Type: "\x00"
+      Position: [0, 0, 0]
+      Axis: [0, 1, 0]
+      Limited: false
+      LimitMin: -3.14159
+      LimitMax: 3.14159
+      Stiffness: 0
+      Damping: 0
+      Armature: 0
+      JointId: -1
   - Entity: 3979425523513348011
     Domain: Client
     TagComponent:
@@ -603,6 +718,22 @@ Entities:
       Visible: true
     MujocoGeomComponent:
       ID: 50
+  - Entity: 4912591753614302607
+    Domain: Client
+    TagComponent:
+      Tag: LS_StackTarget_Yellow
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.55, 0.0105, 0.33]
+      Rotation: [0, 0, 0]
+      Scale: [0.075, 0.001, 0.075]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 2763209391511675746
+      Visible: true
   - Entity: 5082453847486142017
     Domain: Client
     TagComponent:
@@ -623,6 +754,72 @@ Entities:
       Visible: true
     MujocoGeomComponent:
       ID: 66
+  - Entity: 5093231954624172071
+    Domain: Client
+    TagComponent:
+      Tag: LS_Obj_Yellow_Large
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.33, 0.042, -0.35]
+      Rotation: [0, 0, 0]
+      Scale: [0.06, 0.06, 0.06]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 7109243720062974663
+      Visible: true
+    MujocoBoxColliderComponent:
+      Density: 500
+      Friction: [1, 0.1, 0.01]
+      Contype: 1
+      Conaffinity: 1
+      Condim: -1
+    MujocoJointComponent:
+      Type: "\x00"
+      Position: [0, 0, 0]
+      Axis: [0, 1, 0]
+      Limited: false
+      LimitMin: -3.14159
+      LimitMax: 3.14159
+      Stiffness: 0
+      Damping: 0
+      Armature: 0
+      JointId: -1
+  - Entity: 5336869166264229031
+    Domain: Client
+    TagComponent:
+      Tag: LS_Obj_Yellow_Medium
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.42, 0.037, -0.35]
+      Rotation: [0, 0, 0]
+      Scale: [0.05, 0.05, 0.05]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 7109243720062974663
+      Visible: true
+    MujocoBoxColliderComponent:
+      Density: 500
+      Friction: [1, 0.1, 0.01]
+      Contype: 1
+      Conaffinity: 1
+      Condim: -1
+    MujocoJointComponent:
+      Type: "\x00"
+      Position: [0, 0, 0]
+      Axis: [0, 1, 0]
+      Limited: false
+      LimitMin: -3.14159
+      LimitMax: 3.14159
+      Stiffness: 0
+      Damping: 0
+      Armature: 0
+      JointId: -1
   - Entity: 5476207417671254927
     Domain: Client
     TagComponent:
@@ -716,6 +913,61 @@ Entities:
       Visible: true
     MujocoGeomComponent:
       ID: 6
+  - Entity: 6051818308591446778
+    Domain: Client
+    TagComponent:
+      Tag: LS_Workspace
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.5, 0.005, 0]
+      Rotation: [0, 0, 0]
+      Scale: [0.5, 0.01, 0.9]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 15266583664214820056
+      Visible: true
+    MujocoBoxColliderComponent:
+      Density: 500
+      Friction: [1, 0.1, 0.01]
+      Contype: 1
+      Conaffinity: 1
+      Condim: -1
+  - Entity: 6530565878512278646
+    Domain: Client
+    TagComponent:
+      Tag: LS_Obj_Red_Small
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.51, 0.032, -0.08]
+      Rotation: [0, 0, 0]
+      Scale: [0.04, 0.04, 0.04]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 16088827179207113330
+      Visible: true
+    MujocoBoxColliderComponent:
+      Density: 500
+      Friction: [1, 0.1, 0.01]
+      Contype: 1
+      Conaffinity: 1
+      Condim: -1
+    MujocoJointComponent:
+      Type: "\x00"
+      Position: [0, 0, 0]
+      Axis: [0, 1, 0]
+      Limited: false
+      LimitMin: -3.14159
+      LimitMax: 3.14159
+      Stiffness: 0
+      Damping: 0
+      Armature: 0
+      JointId: -1
   - Entity: 6636467337094527990
     Domain: Client
     TagComponent:
@@ -809,6 +1061,39 @@ Entities:
       Visible: true
     MujocoGeomComponent:
       ID: 17
+  - Entity: 7628884589540688456
+    Domain: Client
+    TagComponent:
+      Tag: LS_Obj_Green_Medium
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.42, 0.037, -0.26]
+      Rotation: [0, 0, 0]
+      Scale: [0.05, 0.05, 0.05]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 2963613871036513138
+      Visible: true
+    MujocoBoxColliderComponent:
+      Density: 500
+      Friction: [1, 0.1, 0.01]
+      Contype: 1
+      Conaffinity: 1
+      Condim: -1
+    MujocoJointComponent:
+      Type: "\x00"
+      Position: [0, 0, 0]
+      Axis: [0, 1, 0]
+      Limited: false
+      LimitMin: -3.14159
+      LimitMax: 3.14159
+      Stiffness: 0
+      Damping: 0
+      Armature: 0
+      JointId: -1
   - Entity: 7815123027454069743
     Domain: Client
     TagComponent:
@@ -862,6 +1147,39 @@ Entities:
       Scale: [1, 1, 1]
     MujocoBodyComponent:
       ID: 11
+  - Entity: 8801416030267743176
+    Domain: Client
+    TagComponent:
+      Tag: LS_Obj_Red_Medium
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.42, 0.037, -0.08]
+      Rotation: [0, 0, 0]
+      Scale: [0.05, 0.05, 0.05]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 16088827179207113330
+      Visible: true
+    MujocoBoxColliderComponent:
+      Density: 500
+      Friction: [1, 0.1, 0.01]
+      Contype: 1
+      Conaffinity: 1
+      Condim: -1
+    MujocoJointComponent:
+      Type: "\x00"
+      Position: [0, 0, 0]
+      Axis: [0, 1, 0]
+      Limited: false
+      LimitMin: -3.14159
+      LimitMax: 3.14159
+      Stiffness: 0
+      Damping: 0
+      Armature: 0
+      JointId: -1
   - Entity: 8916743008336446908
     Domain: Client
     TagComponent:
@@ -902,6 +1220,72 @@ Entities:
       Visible: true
     MujocoGeomComponent:
       ID: 19
+  - Entity: 9281509733859049039
+    Domain: Client
+    TagComponent:
+      Tag: LS_Obj_Blue_Small
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.51, 0.032, -0.17]
+      Rotation: [0, 0, 0]
+      Scale: [0.04, 0.04, 0.04]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 12013601712572768103
+      Visible: true
+    MujocoBoxColliderComponent:
+      Density: 500
+      Friction: [1, 0.1, 0.01]
+      Contype: 1
+      Conaffinity: 1
+      Condim: -1
+    MujocoJointComponent:
+      Type: "\x00"
+      Position: [0, 0, 0]
+      Axis: [0, 1, 0]
+      Limited: false
+      LimitMin: -3.14159
+      LimitMax: 3.14159
+      Stiffness: 0
+      Damping: 0
+      Armature: 0
+      JointId: -1
+  - Entity: 9632062183731846134
+    Domain: Client
+    TagComponent:
+      Tag: LS_Obj_Green_Small
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.51, 0.032, -0.26]
+      Rotation: [0, 0, 0]
+      Scale: [0.04, 0.04, 0.04]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 2963613871036513138
+      Visible: true
+    MujocoBoxColliderComponent:
+      Density: 500
+      Friction: [1, 0.1, 0.01]
+      Contype: 1
+      Conaffinity: 1
+      Condim: -1
+    MujocoJointComponent:
+      Type: "\x00"
+      Position: [0, 0, 0]
+      Axis: [0, 1, 0]
+      Limited: false
+      LimitMin: -3.14159
+      LimitMax: 3.14159
+      Stiffness: 0
+      Damping: 0
+      Armature: 0
+      JointId: -1
   - Entity: 9710512394250698508
     Domain: Client
     TagComponent:
@@ -922,6 +1306,22 @@ Entities:
       Visible: true
     MujocoGeomComponent:
       ID: 7
+  - Entity: 9781953118258136991
+    Domain: Client
+    TagComponent:
+      Tag: LS_StackTarget_Blue
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.55, 0.0105, 0.18]
+      Rotation: [0, 0, 0]
+      Scale: [0.075, 0.001, 0.075]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 12883507412635141634
+      Visible: true
   - Entity: 10193257777871374633
     Domain: Client
     TagComponent:
@@ -1028,6 +1428,39 @@ Entities:
       Visible: true
     MujocoGeomComponent:
       ID: 28
+  - Entity: 11411607095166080678
+    Domain: Client
+    TagComponent:
+      Tag: LS_Obj_Yellow_Tiny
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.6, 0.027, -0.35]
+      Rotation: [0, 0, 0]
+      Scale: [0.03, 0.03, 0.03]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 7109243720062974663
+      Visible: true
+    MujocoBoxColliderComponent:
+      Density: 500
+      Friction: [1, 0.1, 0.01]
+      Contype: 1
+      Conaffinity: 1
+      Condim: -1
+    MujocoJointComponent:
+      Type: "\x00"
+      Position: [0, 0, 0]
+      Axis: [0, 1, 0]
+      Limited: false
+      LimitMin: -3.14159
+      LimitMax: 3.14159
+      Stiffness: 0
+      Damping: 0
+      Armature: 0
+      JointId: -1
   - Entity: 11699848918789744984
     Domain: Client
     TagComponent:
@@ -1059,6 +1492,39 @@ Entities:
       Visible: true
     MujocoGeomComponent:
       ID: 16
+  - Entity: 11984427307728419343
+    Domain: Client
+    TagComponent:
+      Tag: LS_Obj_Yellow_Small
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.51, 0.032, -0.35]
+      Rotation: [0, 0, 0]
+      Scale: [0.04, 0.04, 0.04]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 7109243720062974663
+      Visible: true
+    MujocoBoxColliderComponent:
+      Density: 500
+      Friction: [1, 0.1, 0.01]
+      Contype: 1
+      Conaffinity: 1
+      Condim: -1
+    MujocoJointComponent:
+      Type: "\x00"
+      Position: [0, 0, 0]
+      Axis: [0, 1, 0]
+      Limited: false
+      LimitMin: -3.14159
+      LimitMax: 3.14159
+      Stiffness: 0
+      Damping: 0
+      Armature: 0
+      JointId: -1
   - Entity: 12014791487605644361
     Domain: Client
     TagComponent:
@@ -1176,6 +1642,22 @@ Entities:
       Visible: true
     MujocoGeomComponent:
       ID: 22
+  - Entity: 12866213092073847402
+    Domain: Client
+    TagComponent:
+      Tag: LS_StackTarget_Red
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.4, 0.0105, 0.18]
+      Rotation: [0, 0, 0]
+      Scale: [0.075, 0.001, 0.075]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 9660294030299042613
+      Visible: true
   - Entity: 12874163262129531316
     Domain: Client
     TagComponent:
@@ -1196,6 +1678,39 @@ Entities:
       Visible: true
     MujocoGeomComponent:
       ID: 0
+  - Entity: 13034179355047021826
+    Domain: Client
+    TagComponent:
+      Tag: LS_Obj_Red_Large
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.33, 0.042, -0.08]
+      Rotation: [0, 0, 0]
+      Scale: [0.06, 0.06, 0.06]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 16088827179207113330
+      Visible: true
+    MujocoBoxColliderComponent:
+      Density: 500
+      Friction: [1, 0.1, 0.01]
+      Contype: 1
+      Conaffinity: 1
+      Condim: -1
+    MujocoJointComponent:
+      Type: "\x00"
+      Position: [0, 0, 0]
+      Axis: [0, 1, 0]
+      Limited: false
+      LimitMin: -3.14159
+      LimitMax: 3.14159
+      Stiffness: 0
+      Damping: 0
+      Armature: 0
+      JointId: -1
   - Entity: 13133421444478494799
     Domain: Client
     TagComponent:
@@ -1451,6 +1966,39 @@ Entities:
       Visible: true
     MujocoGeomComponent:
       ID: 42
+  - Entity: 16135675660266589314
+    Domain: Client
+    TagComponent:
+      Tag: LS_Obj_Green_Large
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.33, 0.042, -0.26]
+      Rotation: [0, 0, 0]
+      Scale: [0.06, 0.06, 0.06]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 2963613871036513138
+      Visible: true
+    MujocoBoxColliderComponent:
+      Density: 500
+      Friction: [1, 0.1, 0.01]
+      Contype: 1
+      Conaffinity: 1
+      Condim: -1
+    MujocoJointComponent:
+      Type: "\x00"
+      Position: [0, 0, 0]
+      Axis: [0, 1, 0]
+      Limited: false
+      LimitMin: -3.14159
+      LimitMax: 3.14159
+      Stiffness: 0
+      Damping: 0
+      Armature: 0
+      JointId: -1
   - Entity: 16404804333263736854
     Domain: Client
     TagComponent:
@@ -1471,6 +2019,39 @@ Entities:
       Visible: true
     MujocoGeomComponent:
       ID: 1
+  - Entity: 16473040084303611367
+    Domain: Client
+    TagComponent:
+      Tag: LS_Obj_Blue_Medium
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.42, 0.037, -0.17]
+      Rotation: [0, 0, 0]
+      Scale: [0.05, 0.05, 0.05]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 12013601712572768103
+      Visible: true
+    MujocoBoxColliderComponent:
+      Density: 500
+      Friction: [1, 0.1, 0.01]
+      Contype: 1
+      Conaffinity: 1
+      Condim: -1
+    MujocoJointComponent:
+      Type: "\x00"
+      Position: [0, 0, 0]
+      Axis: [0, 1, 0]
+      Limited: false
+      LimitMin: -3.14159
+      LimitMax: 3.14159
+      Stiffness: 0
+      Damping: 0
+      Armature: 0
+      JointId: -1
   - Entity: 16576985411362969151
     Domain: Client
     TagComponent:
@@ -1531,6 +2112,39 @@ Entities:
       Visible: true
     MujocoGeomComponent:
       ID: 27
+  - Entity: 16873968514792230281
+    Domain: Client
+    TagComponent:
+      Tag: LS_Obj_Green_Tiny
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.6, 0.027, -0.26]
+      Rotation: [0, 0, 0]
+      Scale: [0.03, 0.03, 0.03]
+    StaticMeshComponent:
+      AssetID: 4241663774595030205
+      MaterialTable:
+        0: 2963613871036513138
+      Visible: true
+    MujocoBoxColliderComponent:
+      Density: 500
+      Friction: [1, 0.1, 0.01]
+      Contype: 1
+      Conaffinity: 1
+      Condim: -1
+    MujocoJointComponent:
+      Type: "\x00"
+      Position: [0, 0, 0]
+      Axis: [0, 1, 0]
+      Limited: false
+      LimitMin: -3.14159
+      LimitMax: 3.14159
+      Stiffness: 0
+      Damping: 0
+      Armature: 0
+      JointId: -1
   - Entity: 16920420648265526306
     Domain: Client
     TagComponent:

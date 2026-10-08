@@ -1,5 +1,6 @@
 Project:
   Name: LuckySortStack
+  Version: ""
   AssetDirectory: Assets
   AssetRegistry: Assets/AssetRegistry.hzr
   AudioCommandsRegistryPath: Assets/AudioCommandsRegistry.hzr
@@ -47,48 +48,102 @@ Project:
     Audio:
       Enabled: true
       LevelFilter: Error
+    Auth:
+      Enabled: true
+      LevelFilter: Trace
+    CORE:
+      Enabled: true
+      LevelFilter: Trace
+    CameraRecorder:
+      Enabled: true
+      LevelFilter: Trace
+    ContentVault:
+      Enabled: true
+      LevelFilter: Trace
     Core:
+      Enabled: true
+      LevelFilter: Trace
+    Crash:
       Enabled: true
       LevelFilter: Trace
     Data:
       Enabled: true
       LevelFilter: Trace
+    Decomposition:
+      Enabled: true
+      LevelFilter: Trace
     EditorLayer:
       Enabled: true
       LevelFilter: Info
+    FFmpegWriter:
+      Enabled: true
+      LevelFilter: Trace
     GLFW:
       Enabled: true
       LevelFilter: Error
+    Hub:
+      Enabled: true
+      LevelFilter: Trace
     Memory:
       Enabled: true
       LevelFilter: Error
     Mesh:
       Enabled: true
       LevelFilter: Warn
+    Motion:
+      Enabled: true
+      LevelFilter: Error
+    Mujoco:
+      Enabled: true
+      LevelFilter: Trace
     Observer:
+      Enabled: true
+      LevelFilter: Trace
+    ParquetWriter:
       Enabled: true
       LevelFilter: Trace
     Physics:
       Enabled: true
       LevelFilter: Info
+    Platform:
+      Enabled: true
+      LevelFilter: Trace
+    Preparing:
+      Enabled: true
+      LevelFilter: Trace
+    ProcessHelper:
+      Enabled: true
+      LevelFilter: Trace
     Project:
       Enabled: true
       LevelFilter: Warn
+    ProjectPaths:
+      Enabled: true
+      LevelFilter: Trace
     Renderer:
       Enabled: true
       LevelFilter: Warn
     Scene:
       Enabled: true
       LevelFilter: Info
+    SceneSerializer:
+      Enabled: true
+      LevelFilter: Trace
     ScriptBuilder:
       Enabled: true
       LevelFilter: Trace
+    ScriptStorage:
+      Enabled: true
+      LevelFilter: Error
     Scripting:
       Enabled: true
       LevelFilter: Warn
     Sound Spatializer:
       Enabled: true
       LevelFilter: Warn
+    Sync:
+      Enabled: true
+      LevelFilter: Trace
     Timer:
       Enabled: false
       LevelFilter: Trace

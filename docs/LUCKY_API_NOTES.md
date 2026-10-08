@@ -145,6 +145,22 @@ Observer.RegisterTask(int index, string description);  Observer.SetCurrentTaskIn
 
 ---
 
+## Verified in editor
+
+- **IK + trigger sequencing + gripper** (Stage 0 smoke test, 2026-10-08): world-space `Target_Position`, orientation
+  (90°, 90°, 0°) top-down, one trigger per step, `actuator8` 255/0 open/close all behave as documented.
+
+## Scene file format (for `Tools/SceneBuilder`)
+
+Taken from the engine's `RobotSandbox/.../Welcome.hscene` and this project's `Main.hscene`.
+- Files are CRLF, no trailing newline. Entities live under `Entities:` as `  - Entity: <uint64>` blocks, sorted by ID.
+- Static MuJoCo fixture = `StaticMeshComponent` + `MujocoBoxColliderComponent` (size from entity scale on the unit cube).
+- Dynamic MuJoCo body = the above + `MujocoJointComponent` with `Type: "\x00"` (free joint). This matches what the editor
+  agent's `make_mujoco_dynamic_body` produces. An older prefab (`P_BlueBlock`) used `Dynamic: true` on the collider instead.
+  If generated cubes don't fall/settle, try that form.
+- Materials: `.hmaterial` YAML + an entry in `AssetRegistry.hzr` (`Handle` / `FilePath` / `Type: Material`).
+- Unit cube mesh handle: `4241663774595030205` (`Meshes/Default/Cube.hsmesh`).
+
 ## Other useful APIs
 
 | API | Purpose |
