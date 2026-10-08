@@ -149,6 +149,15 @@ Observer.RegisterTask(int index, string description);  Observer.SetCurrentTaskIn
 
 - **IK + trigger sequencing + gripper** (Stage 0 smoke test, 2026-10-08): world-space `Target_Position`, orientation
   (90°, 90°, 0°) top-down, one trigger per step, `actuator8` 255/0 open/close all behave as documented.
+- **Generated MuJoCo cubes** (Stage 1, 2026-10-08): collider + free-joint form settles correctly and can be grasped,
+  lifted and placed by the Panda (grasp test, `GraspOffsetY = 0`).
+- **Initial placement of MuJoCo free bodies** (Stage 3, 2026-10-08): writing `Transform.WorldTranslation` /
+  `WorldRotation` in a script's `OnCreate` (before physics runs) **works**. 16/16 pool objects were within 5 mm after
+  0.5 s of sim time. This is the episode-start placement path; the `SetQpos*` fallback isn't needed.
+  Still unverified: moving bodies mid-Play (needed for reset without leaving Play mode).
+- **Determinism engine vs. offline** (Stage 3): seed 1234 gives fingerprint `ACF5C17F6BE82A85` both in-engine
+  (workspace read from the scene) and in the unit tests (`WorkspaceSpec.Default`).
+- **Entity tag ↔ entity lookup**: `FindEntityByTag` resolves the `LS_*` scene entities from scripts.
 
 ## Scene file format (for `Tools/SceneBuilder`)
 
