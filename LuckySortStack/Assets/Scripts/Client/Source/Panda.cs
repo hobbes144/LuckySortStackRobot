@@ -10,6 +10,10 @@ namespace LuckySortStack
 	// Will be replaced by the modular RobotManipulator / TaskStateMachine.
 	public class Panda : Entity
 	{
+		[Group("Smoke Test")]
+		[Tooltip("Off by default now that EpisodeManager lays out the pool; turn on to re-run the IK/gripper checks.")]
+		public bool RunSmokeTest = false;
+
 		[Group("Waypoints")] [Units("m")]
 		[Tooltip("Idle pose. Default is the grasp_site position in the Panda's rest pose.")]
 		public Vector3 Home = new Vector3(0.55f, 0.52f, 0.0f);
@@ -99,6 +103,8 @@ namespace LuckySortStack
 			if (m_Robot == null)     Log.Error("[Panda] No RobotControllerComponent on this entity.");
 			if (m_Gripper == null)   Log.Error($"[Panda] Gripper actuator '{GripperActuatorName}' not found.");
 			if (m_GraspSite == null) Log.Warn("[Panda] No 'grasp_site' entity found; tracking error will not be logged.");
+
+			if (!RunSmokeTest) return;
 
 			BuildCycle();
 			m_StartupTimer = StartupDelay;

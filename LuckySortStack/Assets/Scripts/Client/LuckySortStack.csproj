@@ -79,6 +79,12 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Source\Core\ObjectTypes.cs" />
+    <Compile Include="Source\Core\TaskConfig.cs" />
+    <Compile Include="Source\Core\TaskDefinition.cs" />
+    <Compile Include="Source\Core\WorkspaceSpec.cs" />
+    <Compile Include="Source\Episodes\EpisodeManager.cs" />
+    <Compile Include="Source\Generation\TaskGenerator.cs" />
     <Compile Include="Source\Panda.cs" />
   </ItemGroup>
 </Project>
