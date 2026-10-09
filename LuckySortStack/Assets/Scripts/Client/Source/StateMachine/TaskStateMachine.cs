@@ -12,6 +12,7 @@ namespace LuckySortStack.StateMachine
 		Idle,
 		SelectTarget,
 		MoveAboveObject,
+		AlignGripper,      // measure the real gripper yaw and correct it before descending
 		MoveToObject,
 		Grasp,
 		Lift,
@@ -38,9 +39,18 @@ namespace LuckySortStack.StateMachine
 		public float MaxYawSpeed = 1.5f;
 		public float MinMoveDuration = 0.3f;
 		public float MoveTolerance = 0.015f;        // grasp site must get this close to finish a move
-		public float MoveTimeoutSlack = 2.0f;       // extra time past the planned duration before "unreachable"
+		public float MoveTimeoutSlack = 2.0f;       // extra time past the planned duration before giving up
+
+		// Yaw calibration. Commanded yaw maps to physical yaw as  physical = sign * command + offset  (mod 90°).
+		// YawSign is only the initial guess; sign and offset are learned from measurements.
+		public bool ClosedLoopYaw = true;
+		public float YawSign = 1f;
+		public float YawTolerance = 6f * MathF.PI / 180f;
+		public float AlignDwell = 0.25f;            // let the wrist settle before measuring
+		public int MaxAlignIterations = 4;
 
 		public float GraspOffsetY = 0.0f;           // grasp-site height relative to object centre
+		public float PushTolerance = 0.008f;        // object moved this far during descent = collision
 		public float PlaceGap = 0.003f;             // release this far above resting contact
 		public float GripperCloseTime = 0.8f;
 		public float ReleaseRampTime = 0.15f;       // open gradually to avoid flicking the object
@@ -69,6 +79,8 @@ namespace LuckySortStack.StateMachine
 		public int StepIndex => m_StepIndex;
 		public IReadOnlyList<PlannedStep> Steps => m_Steps;
 		public bool IsFinished => State == TaskState.Success || State == TaskState.Failure;
+		public float LearnedYawSign => m_YawSign;
+		public float LearnedYawOffset => m_YawOffset;
 
 		public event Action<string>? Log;
 		public event Action<TaskState, TaskState>? StateChanged;
@@ -89,9 +101,18 @@ namespace LuckySortStack.StateMachine
 
 		private Vector3 m_MoveTarget;
 		private float m_MoveDuration;
+		private float m_MoveSpeed;
 		private float m_CommandedYaw;
-		private float m_GraspYaw;
 		private Vector3 m_PlaceCentre;
+		private Vector3 m_ObjectAtDescent;
+
+		private float m_YawSign;
+		private float m_YawOffset;
+		private bool m_YawCalibrated;
+		private float m_AlignDesired;
+		private TaskState m_AlignNext;
+		private int m_AlignIteration;
+		private float m_AlignPrevError;
 
 		private Vector3 m_SettleLastPos;
 		private float m_SettleStillTime;
@@ -102,6 +123,7 @@ namespace LuckySortStack.StateMachine
 			m_World = world;
 			m_Cfg   = settings;
 			m_Steps = new List<PlannedStep>(steps);
+			m_YawSign = settings.YawSign >= 0f ? 1f : -1f;
 			for (int i = 0; i < task.Targets.Count; i++) m_Placed[i] = new List<(SortObjectDefinition, Vector3)>();
 		}
 
@@ -126,15 +148,16 @@ namespace LuckySortStack.StateMachine
 			switch (State)
 			{
 				case TaskState.SelectTarget:    UpdateSelectTarget(); break;
-				case TaskState.MoveAboveObject: OnMoveDone(TaskState.MoveToObject, FailureReason.Unreachable); break;
-				case TaskState.MoveToObject:    OnMoveDone(TaskState.Grasp, FailureReason.Unreachable); break;
+				case TaskState.MoveAboveObject: UpdateMoveAboveObject(); break;
+				case TaskState.AlignGripper:    UpdateAlignGripper(); break;
+				case TaskState.MoveToObject:    UpdateMoveToObject(); break;
 				case TaskState.Grasp:           if (m_StateTime >= m_Cfg.GripperCloseTime) TransitionTo(TaskState.Lift); break;
-				case TaskState.Lift:            OnMoveDone(TaskState.VerifyGrasp, FailureReason.Unreachable); break;
+				case TaskState.Lift:            OnMoveDone(TaskState.VerifyGrasp); break;
 				case TaskState.VerifyGrasp:     UpdateVerifyGrasp(); break;
-				case TaskState.MoveToStack:     OnMoveDone(TaskState.Place, FailureReason.Unreachable); break;
+				case TaskState.MoveToStack:     UpdateMoveToStack(); break;
 				case TaskState.Place:           UpdatePlace(); break;
 				case TaskState.Release:         UpdateRelease(); break;
-				case TaskState.Retreat:         OnMoveDone(TaskState.VerifyPlacement, FailureReason.Unreachable); break;
+				case TaskState.Retreat:         OnMoveDone(TaskState.VerifyPlacement); break;
 				case TaskState.VerifyPlacement: UpdateVerifyPlacement(dt); break;
 				case TaskState.Recovery:        UpdateRecovery(); break;
 				case TaskState.ReturnHome:      UpdateReturnHome(); break;
@@ -159,40 +182,37 @@ namespace LuckySortStack.StateMachine
 			{
 				case TaskState.MoveAboveObject:
 				{
+					// Every approach is a pick attempt, so a target that can never be reached still runs out of retries.
+					m_PickAttempts++;
+					Metrics.PickAttempts++;
 					m_Arm.SetGripper(1f);
-					Vector3 p = ObjectPos(step!);
-					m_GraspYaw = NearestCubeYaw(m_World.GetObjectYaw(step!.Object.PoolTag), m_CommandedYaw);
-					StartMove(new Vector3(p.X, m_Cfg.TravelHeight, p.Z), m_GraspYaw, m_Cfg.TravelSpeed);
+					m_ObjectAtDescent = ObjectPos(step!);
+					StartMove(new Vector3(m_ObjectAtDescent.X, m_Cfg.TravelHeight, m_ObjectAtDescent.Z), CommandFor(ObjectYaw(step!)), m_Cfg.TravelSpeed);
 					break;
 				}
 				case TaskState.MoveToObject:
 				{
-					m_PickAttempts++;
-					Metrics.PickAttempts++;
-					Vector3 p = ObjectPos(step!);   // re-read: the object may have shifted
-					StartMove(new Vector3(p.X, p.Y + m_Cfg.GraspOffsetY, p.Z), m_GraspYaw, m_Cfg.DescendSpeed);
+					m_ObjectAtDescent = ObjectPos(step!);   // re-read: the object may have shifted
+					StartMove(m_ObjectAtDescent + new Vector3(0f, m_Cfg.GraspOffsetY, 0f), m_CommandedYaw, m_Cfg.DescendSpeed);
 					break;
 				}
 				case TaskState.Grasp:
 					m_Arm.SetGripper(0f);
 					break;
 				case TaskState.Lift:
-					StartMove(new Vector3(m_MoveTarget.X, m_Cfg.TravelHeight, m_MoveTarget.Z), m_GraspYaw, m_Cfg.DescendSpeed);
+					StartMove(new Vector3(m_MoveTarget.X, m_Cfg.TravelHeight, m_MoveTarget.Z), m_CommandedYaw, m_Cfg.DescendSpeed);
 					break;
 				case TaskState.MoveToStack:
-				{
 					m_PlaceCentre = StackPlacement.PlaceCentre(step!.Stack, LivePlaced(step.StackIndex), step.Object.Edge, m_Cfg.PlaceGap);
-					// Stack yaw is 0: rotate the held cube square to the stack on the way.
-					StartMove(new Vector3(m_PlaceCentre.X, m_Cfg.TravelHeight, m_PlaceCentre.Z), 0f, m_Cfg.TravelSpeed);
+					StartMove(new Vector3(m_PlaceCentre.X, m_Cfg.TravelHeight, m_PlaceCentre.Z), CommandFor(StackYaw(step)), m_Cfg.TravelSpeed);
 					break;
-				}
 				case TaskState.Place:
 					m_PlaceAttempts++;
 					Metrics.PlaceAttempts++;
-					StartMove(m_PlaceCentre + new Vector3(0f, m_Cfg.GraspOffsetY, 0f), 0f, m_Cfg.PlaceDescendSpeed);
+					StartMove(m_PlaceCentre + new Vector3(0f, m_Cfg.GraspOffsetY, 0f), m_CommandedYaw, m_Cfg.PlaceDescendSpeed);
 					break;
 				case TaskState.Retreat:
-					StartMove(new Vector3(m_PlaceCentre.X, m_Cfg.TravelHeight, m_PlaceCentre.Z), 0f, m_Cfg.DescendSpeed);
+					StartMove(new Vector3(m_PlaceCentre.X, m_Cfg.TravelHeight, m_PlaceCentre.Z), m_CommandedYaw, m_Cfg.DescendSpeed);
 					break;
 				case TaskState.VerifyPlacement:
 					m_SettleLastPos = ObjectPos(step!);
@@ -207,7 +227,7 @@ namespace LuckySortStack.StateMachine
 				}
 				case TaskState.ReturnHome:
 					m_Arm.SetGripper(1f);
-					StartMove(m_Cfg.Home, 0f, m_Cfg.TravelSpeed);
+					StartMove(m_Cfg.Home, CommandFor(0f), m_Cfg.TravelSpeed);
 					break;
 			}
 		}
@@ -225,6 +245,98 @@ namespace LuckySortStack.StateMachine
 			m_PlaceAttempts = 0;
 			Emit($"Step {m_StepIndex + 1}/{m_Steps.Count}: {CurrentStep}");
 			TransitionTo(TaskState.MoveAboveObject);
+		}
+
+		private void UpdateMoveAboveObject()
+		{
+			MoveStatus status = CheckMove();
+			if (status == MoveStatus.Running) return;
+			if (status == MoveStatus.TimedOut) { MoveFailed("approach"); return; }
+			BeginAlign(ObjectYaw(CurrentStep!), TaskState.MoveToObject);
+		}
+
+		private void UpdateMoveToStack()
+		{
+			MoveStatus status = CheckMove();
+			if (status == MoveStatus.Running) return;
+			if (status == MoveStatus.TimedOut) { MoveFailed("move to stack"); return; }
+			BeginAlign(StackYaw(CurrentStep!), TaskState.Place);
+		}
+
+		// Physical yaw must match the target modulo 90° (cube symmetry). Each correction also
+		// refines the learned command→physical mapping; if a correction made things worse,
+		// the sign guess was wrong and is flipped.
+		private void BeginAlign(float desiredPhysicalYaw, TaskState next)
+		{
+			m_AlignDesired = desiredPhysicalYaw;
+			m_AlignNext = next;
+			m_AlignIteration = 0;
+			m_MoveDuration = 0f;
+			TransitionTo(TaskState.AlignGripper);
+		}
+
+		private void UpdateAlignGripper()
+		{
+			if (!m_Cfg.ClosedLoopYaw)
+			{
+				TransitionTo(m_AlignNext);
+				return;
+			}
+
+			MoveStatus status = CheckMove();
+			if (status == MoveStatus.TimedOut) { MoveFailed("gripper alignment"); return; }
+			if (status == MoveStatus.Running || m_StateTime < m_MoveDuration + m_Cfg.AlignDwell) return;
+
+			float measured = m_Arm.GripperYaw;
+			float error = WrapQuarter(measured - m_AlignDesired);
+			if (!m_YawCalibrated)
+			{
+				Emit($"Yaw check: commanded {Deg(m_CommandedYaw)}°, measured {Deg(measured)}°, wanted {Deg(m_AlignDesired)}° (mod 90), error {Deg(error)}°");
+			}
+
+			if (MathF.Abs(error) <= m_Cfg.YawTolerance)
+			{
+				m_YawCalibrated = true;
+				TransitionTo(m_AlignNext);
+				return;
+			}
+
+			if (m_AlignIteration >= m_Cfg.MaxAlignIterations)
+			{
+				Emit($"Gripper still {Deg(error)}° off after {m_AlignIteration} corrections; continuing");
+				TransitionTo(m_AlignNext);
+				return;
+			}
+
+			if (m_AlignIteration > 0 && MathF.Abs(error) > MathF.Abs(m_AlignPrevError) - 0.5f * m_Cfg.YawTolerance)
+			{
+				m_YawSign = -m_YawSign;
+				Emit($"Yaw correction didn't help ({Deg(m_AlignPrevError)}° → {Deg(error)}°); flipping yaw sign to {m_YawSign:+0;-0}");
+			}
+			m_YawOffset = WrapQuarter(measured - m_YawSign * m_CommandedYaw);
+			m_AlignPrevError = error;
+			m_AlignIteration++;
+
+			StartMove(m_MoveTarget, CommandFor(m_AlignDesired), m_MoveSpeed);
+			m_StateTime = 0f;
+		}
+
+		private void UpdateMoveToObject()
+		{
+			PlannedStep step = CurrentStep!;
+			float pushed = HorizontalDistance(ObjectPos(step), m_ObjectAtDescent);
+			if (pushed > m_Cfg.PushTolerance)
+			{
+				Metrics.GraspFailures++;
+				Emit($"Collision: {step.Object.PoolTag} pushed {pushed * 1000f:F0} mm during descent " +
+					$"(gripper yaw {Deg(m_Arm.GripperYaw)}°, object yaw {Deg(ObjectYaw(step))}°)");
+				BeginRecovery(FailureReason.GraspFailed);
+				return;
+			}
+
+			MoveStatus status = CheckMove();
+			if (status == MoveStatus.Done) TransitionTo(TaskState.Grasp);
+			else if (status == MoveStatus.TimedOut) MoveFailed("descent to object");
 		}
 
 		private void UpdateVerifyGrasp()
@@ -299,6 +411,25 @@ namespace LuckySortStack.StateMachine
 			BeginRecovery(FailureReason.PlacementFailed);
 		}
 
+		// A move that never converged. Picking moves are retried like a failed grasp (the
+		// object may have been nudged); anything else is a hard failure.
+		private void MoveFailed(string what)
+		{
+			PlannedStep? step = CurrentStep;
+			Vector3 g = m_Arm.GripperPosition;
+			string detail = $"{what}: grasp site {Vector3.Distance(g, m_MoveTarget) * 1000f:F0} mm from target after {m_StateTime:F1}s. " +
+				$"target ({m_MoveTarget.X:F3}, {m_MoveTarget.Y:F3}, {m_MoveTarget.Z:F3}) r={MathF.Sqrt(m_MoveTarget.X * m_MoveTarget.X + m_MoveTarget.Z * m_MoveTarget.Z):F3}, " +
+				$"gripper ({g.X:F3}, {g.Y:F3}, {g.Z:F3}), yaw cmd {Deg(m_CommandedYaw)}° measured {Deg(m_Arm.GripperYaw)}°";
+			if (step != null && (State == TaskState.MoveAboveObject || State == TaskState.MoveToObject))
+			{
+				detail += $", object moved {HorizontalDistance(ObjectPos(step), m_ObjectAtDescent) * 1000f:F0} mm";
+				Emit("Move failed: " + detail);
+				BeginRecovery(FailureReason.Unreachable);
+				return;
+			}
+			Fail(FailureReason.Unreachable, detail);
+		}
+
 		private void BeginRecovery(FailureReason reason)
 		{
 			m_RecoveryReason = reason;
@@ -317,14 +448,17 @@ namespace LuckySortStack.StateMachine
 			}
 
 			string tag = CurrentStep!.Object.PoolTag;
-			if (m_RecoveryReason == FailureReason.GraspFailed && m_PickAttempts >= m_Cfg.MaxPickAttempts)
+			if (m_RecoveryReason == FailureReason.PlacementFailed)
 			{
-				Fail(FailureReason.GraspFailed, $"{tag} not grasped after {m_PickAttempts} attempts");
-				return;
+				if (m_PlaceAttempts >= m_Cfg.MaxPlaceAttempts)
+				{
+					Fail(FailureReason.PlacementFailed, $"{tag} not placed after {m_PlaceAttempts} attempts");
+					return;
+				}
 			}
-			if (m_RecoveryReason == FailureReason.PlacementFailed && m_PlaceAttempts >= m_Cfg.MaxPlaceAttempts)
+			else if (m_PickAttempts >= m_Cfg.MaxPickAttempts)
 			{
-				Fail(FailureReason.PlacementFailed, $"{tag} not placed after {m_PlaceAttempts} attempts");
+				Fail(m_RecoveryReason, $"{tag} not picked after {m_PickAttempts} attempts");
 				return;
 			}
 			Emit($"Retrying {tag}");
@@ -339,12 +473,11 @@ namespace LuckySortStack.StateMachine
 			TransitionTo(TaskState.Success);
 		}
 
-		private void OnMoveDone(TaskState next, FailureReason onTimeout)
+		private void OnMoveDone(TaskState next)
 		{
 			MoveStatus status = CheckMove();
 			if (status == MoveStatus.Done) TransitionTo(next);
-			else if (status == MoveStatus.TimedOut)
-				Fail(onTimeout, $"{State}: grasp site {Vector3.Distance(m_Arm.GripperPosition, m_MoveTarget) * 1000f:F0} mm from target after {m_StateTime:F1}s");
+			else if (status == MoveStatus.TimedOut) MoveFailed(State.ToString());
 		}
 
 		private void Fail(FailureReason reason, string detail)
@@ -365,6 +498,7 @@ namespace LuckySortStack.StateMachine
 			float turn = Math.Abs(WrapPi(yaw - m_CommandedYaw));
 			m_MoveDuration = Math.Max(m_Cfg.MinMoveDuration, Math.Max(dist / Math.Max(speed, 1e-3f), turn / Math.Max(m_Cfg.MaxYawSpeed, 1e-3f)));
 			m_MoveTarget = target;
+			m_MoveSpeed = speed;
 			m_CommandedYaw = yaw;
 			m_Arm.MoveTo(target, yaw, m_MoveDuration);
 		}
@@ -376,6 +510,17 @@ namespace LuckySortStack.StateMachine
 			return m_StateTime > m_MoveDuration + m_Cfg.MoveTimeoutSlack ? MoveStatus.TimedOut : MoveStatus.Running;
 		}
 
+		// Command that should produce the given physical yaw (mod 90°), kept within ±45° to
+		// avoid winding up the wrist.
+		private float CommandFor(float physicalYaw) => NearestCubeYaw(m_YawSign * (physicalYaw - m_YawOffset), 0f);
+
+		// Stack yaw: square to the cube below, or 0 for an empty stack.
+		private float StackYaw(PlannedStep step)
+		{
+			var placed = m_Placed[step.StackIndex];
+			return placed.Count == 0 ? 0f : m_World.GetObjectYaw(placed[placed.Count - 1].Obj.PoolTag);
+		}
+
 		private List<(Vector3, float)> LivePlaced(int stackIndex)
 		{
 			var live = new List<(Vector3, float)>();
@@ -385,15 +530,18 @@ namespace LuckySortStack.StateMachine
 		}
 
 		private Vector3 ObjectPos(PlannedStep step) => m_World.GetObjectPosition(step.Object.PoolTag);
+		private float ObjectYaw(PlannedStep step) => m_World.GetObjectYaw(step.Object.PoolTag);
 
 		private void Emit(string message) => Log?.Invoke(message);
 
-		// A cube looks the same every 90°, so pick the equivalent yaw closest to the current gripper yaw.
-		public static float NearestCubeYaw(float objectYaw, float currentYaw)
+		// A cube looks the same every 90°, so pick the equivalent yaw closest to a reference.
+		public static float NearestCubeYaw(float objectYaw, float currentYaw) => currentYaw + WrapQuarter(objectYaw - currentYaw);
+
+		// Wrap to [-45°, 45°].
+		public static float WrapQuarter(float a)
 		{
 			const float quarter = MathF.PI / 2f;
-			float rel = objectYaw - currentYaw;
-			return currentYaw + rel - quarter * MathF.Round(rel / quarter);
+			return a - quarter * MathF.Round(a / quarter);
 		}
 
 		private static float WrapPi(float a)
@@ -402,6 +550,8 @@ namespace LuckySortStack.StateMachine
 			while (a < -MathF.PI) a += 2f * MathF.PI;
 			return a;
 		}
+
+		private static string Deg(float radians) => (radians * 180f / MathF.PI).ToString("F1");
 
 		private static float HorizontalDistance(Vector3 a, Vector3 b) =>
 			MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Z - b.Z) * (a.Z - b.Z));

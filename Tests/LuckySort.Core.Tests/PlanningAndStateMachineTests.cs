@@ -23,9 +23,10 @@ namespace LuckySort.Core.Tests
 			public List<string> Log = new();
 		}
 
-		private static Run Setup(TaskDefinition task, Action<FakeSim>? arrange = null)
+		private static Run Setup(TaskDefinition task, Action<FakeSim>? arrange = null, Action<MotionSettings>? configure = null)
 		{
 			var settings = new MotionSettings();
+			configure?.Invoke(settings);
 			var sim = new FakeSim(task, settings.Home);
 			arrange?.Invoke(sim);
 			var machine = new TaskStateMachine(task, StackPlanner.Plan(task), sim, sim, settings);
@@ -110,6 +111,7 @@ namespace LuckySort.Core.Tests
 			Assert.True(run.Machine.Metrics.Succeeded);
 			Assert.Equal(run.Task.Objects.Count, run.Machine.Metrics.ObjectsPlaced);
 			Assert.Equal(run.Task.Objects.Count, run.Machine.Metrics.PickAttempts);
+			Assert.Equal(0, run.Sim.Collisions);
 
 			foreach (var stack in run.Task.Targets)
 			{
@@ -117,11 +119,48 @@ namespace LuckySort.Core.Tests
 				Assert.Equal(stack.ExpectedObjects.Select(o => o.PoolTag), byHeight.Select(o => o.PoolTag));
 				foreach (var o in stack.ExpectedObjects)
 				{
-					Vector3 p = run.Sim.Bodies[o.PoolTag].Position;
-					Assert.InRange(MathF.Abs(p.X - stack.BasePosition.X), 0f, 0.005f);
-					Assert.InRange(MathF.Abs(p.Z - stack.BasePosition.Z), 0f, 0.005f);
+					var body = run.Sim.Bodies[o.PoolTag];
+					Assert.InRange(MathF.Abs(body.Position.X - stack.BasePosition.X), 0f, 0.005f);
+					Assert.InRange(MathF.Abs(body.Position.Z - stack.BasePosition.Z), 0f, 0.005f);
+					// Faces squared to the stack (yaw 0 modulo 90°).
+					Assert.InRange(MathF.Abs(TaskStateMachine.WrapQuarter(body.Yaw)), 0f, 0.2f);
 				}
 			}
+		}
+
+		[Theory]
+		[InlineData(-1f, 0.35f)]
+		[InlineData(-1f, -0.6f)]
+		[InlineData(1f, 0.5f)]
+		public void YawConventionIsLearnedFromMeasurement(float sign, float offset)
+		{
+			foreach (int seed in new[] { 12345, 1234, 1111, 42, 9 })
+			{
+				var run = Execute(Setup(Task(seed), sim => { sim.YawSign = sign; sim.YawOffset = offset; }));
+				Assert.Equal(TaskState.Success, run.Machine.State);
+				Assert.Equal(0, run.Sim.Collisions);
+				Assert.Equal(sign, run.Machine.LearnedYawSign);
+			}
+		}
+
+		[Fact]
+		public void WithoutClosedLoopYawAWrongSignCollidesAndIsDetected()
+		{
+			var run = Execute(Setup(Task(12345), sim => sim.YawSign = -1f, s => s.ClosedLoopYaw = false));
+			Assert.True(run.Sim.Collisions > 0);
+			Assert.Contains(run.Log, l => l.StartsWith("Collision:"));
+		}
+
+		[Fact]
+		public void PushedObjectIsReapproachedFromItsNewPosition()
+		{
+			var task = Task(12345);
+			string tag = task.Targets[0].ExpectedObjects[0].PoolTag;
+			var run = Execute(Setup(task, sim => sim.PushOnce[tag] = new Vector3(0.015f, 0f, 0f)));
+
+			Assert.Equal(TaskState.Success, run.Machine.State);
+			Assert.Equal(1, run.Machine.Metrics.GraspFailures);
+			Assert.Contains(run.Log, l => l.StartsWith("Collision: " + tag));
 		}
 
 		[Fact]
@@ -190,6 +229,7 @@ namespace LuckySort.Core.Tests
 
 			Assert.Equal(TaskState.Failure, run.Machine.State);
 			Assert.Equal(FailureReason.Unreachable, run.Machine.Metrics.Failure);
+			Assert.Equal(new MotionSettings().MaxPickAttempts, run.Machine.Metrics.PickAttempts);   // retried, then gave up
 		}
 
 		[Fact]
@@ -203,8 +243,9 @@ namespace LuckySort.Core.Tests
 
 			var cycle = new[]
 			{
-				TaskState.SelectTarget, TaskState.MoveAboveObject, TaskState.MoveToObject, TaskState.Grasp, TaskState.Lift,
-				TaskState.VerifyGrasp, TaskState.MoveToStack, TaskState.Place, TaskState.Release, TaskState.Retreat, TaskState.VerifyPlacement,
+				TaskState.SelectTarget, TaskState.MoveAboveObject, TaskState.AlignGripper, TaskState.MoveToObject, TaskState.Grasp,
+				TaskState.Lift, TaskState.VerifyGrasp, TaskState.MoveToStack, TaskState.AlignGripper, TaskState.Place,
+				TaskState.Release, TaskState.Retreat, TaskState.VerifyPlacement,
 			};
 			var expected = Enumerable.Repeat(cycle, task.Objects.Count).SelectMany(c => c)
 				.Concat(new[] { TaskState.SelectTarget, TaskState.ReturnHome, TaskState.Success });

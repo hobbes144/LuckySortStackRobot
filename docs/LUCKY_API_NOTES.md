@@ -159,6 +159,14 @@ Observer.RegisterTask(int index, string description);  Observer.SetCurrentTaskIn
   (workspace read from the scene) and in the unit tests (`WorkspaceSpec.Default`).
 - **Entity tag ↔ entity lookup**: `FindEntityByTag` resolves the `LS_*` scene entities from scripts.
 
+## Open issues from in-editor runs
+
+- **Gripper yaw convention (2026-10-08):** seed 12345 drove the open fingers into a rotated Large cube and
+  pushed it aside; seed 1234 stalled 51 mm above a Large Green grasp. The cause is a yaw mismatch (a 60 mm cube
+  only fits the ~80 mm jaw within about ±20°). Fix: `AlignGripper` measures the real yaw from `grasp_site`'s
+  quaternion (either horizontal axis, modulo 90°) and learns `physical = sign·command + offset`.
+  **TODO:** record the learned sign/offset from the first `Yaw check:` log line, then confirm 1234 and 12345 pass.
+
 ## Scene file format (for `Tools/SceneBuilder`)
 
 Taken from the engine's `RobotSandbox/.../Welcome.hscene` and this project's `Main.hscene`.

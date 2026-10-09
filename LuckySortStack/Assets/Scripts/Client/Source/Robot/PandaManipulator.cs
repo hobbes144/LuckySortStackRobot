@@ -14,10 +14,9 @@ namespace LuckySortStack.Robot
 		private static readonly Identifier k_Dur      = new Identifier("Duration");
 		private static readonly Identifier k_Go       = new Identifier("Start");
 
-		// grasp_site pointing straight down, yaw 0 (measured from the rest pose).
+		// grasp_site pointing straight down (measured from the rest pose). The commanded yaw is added
+		// to Y raw; the state machine learns the sign/offset of that mapping from GripperYaw.
 		public Vector3 TopDownOrientationDeg = new Vector3(90f, 90f, 0f);
-		// Flip to -1 if the gripper turns the wrong way relative to an object's yaw.
-		public float YawSign = 1f;
 		public float GripperOpenValue = 255f;    // panda.xml actuator8 ctrlrange [0, 255]
 		public float GripperCloseValue = 0f;
 
@@ -42,9 +41,23 @@ namespace LuckySortStack.Robot
 			}
 		}
 
+		// With the gripper pointing down, one of grasp_site's local axes is vertical and the other two
+		// are horizontal. Either horizontal axis gives the gripper's yaw modulo 90°.
+		public float GripperYaw
+		{
+			get
+			{
+				Quaternion q = m_GraspSite.Transform.WorldRotationQuat;
+				Vector3 best = q * new Vector3(1f, 0f, 0f);
+				foreach (Vector3 axis in new[] { q * new Vector3(0f, 1f, 0f), q * new Vector3(0f, 0f, 1f) })
+					if (Mathf.Abs(axis.Y) < Mathf.Abs(best.Y)) best = axis;
+				return Mathf.Atan2(best.X, best.Z);
+			}
+		}
+
 		public void MoveTo(Num.Vector3 position, float yaw, float durationSeconds)
 		{
-			Vector3 rot = TopDownOrientationDeg + new Vector3(0f, YawSign * yaw * Mathf.Rad2Deg, 0f);
+			Vector3 rot = TopDownOrientationDeg + new Vector3(0f, yaw * Mathf.Rad2Deg, 0f);
 			m_Robot.SetInputBool   (k_SolveRot, true);
 			m_Robot.SetInputVector3(k_Pos, new Vector3(position.X, position.Y, position.Z));
 			m_Robot.SetInputVector3(k_Rot, rot);

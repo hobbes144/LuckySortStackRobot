@@ -10,6 +10,10 @@ namespace LuckySortStack.Robot
 		// Live position of the grasp point (between the fingertips).
 		Vector3 GripperPosition { get; }
 
+		// Live yaw (radians about world Y) of one of the gripper's horizontal axes. Only meaningful
+		// modulo 90°, which is all a cube grasp needs.
+		float GripperYaw { get; }
+
 		// Issue one Cartesian move. yaw = rotation of the gripper about world Y (radians),
 		// gripper pointing straight down. A new call cancels any move in flight.
 		void MoveTo(Vector3 position, float yaw, float durationSeconds);

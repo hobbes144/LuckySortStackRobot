@@ -1,15 +1,16 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Numerics;
 using LuckySortStack.Core;
 using LuckySortStack.Robot;
+using LuckySortStack.StateMachine;
 
 namespace LuckySort.Core.Tests
 {
 	// Minimal kinematic stand-in for the arm + MuJoCo: the gripper moves linearly to
 	// its target over the commanded duration; closing near an object picks it up;
-	// opening drops it onto whatever is below. Faults can be injected per object.
+	// opening drops it onto whatever is below. Descending onto a cube with the
+	// fingers misaligned shoves it, like the real collision. Faults can be injected.
 	public sealed class FakeSim : IManipulator, IWorldState
 	{
 		public sealed class Body
@@ -23,14 +24,23 @@ namespace LuckySort.Core.Tests
 		public float SurfaceY = 0.01f;
 		public float MaxReach = 0.80f;   // targets beyond this horizontal radius are clamped
 
+		// Physical yaw = YawSign * commanded + YawOffset: the convention the state machine must learn.
+		public float YawSign = 1f;
+		public float YawOffset = 0f;
+		public float MaxMisalignment = 10f * MathF.PI / 180f;   // fingers clear the cube within this
+
 		// Fault injection.
 		public readonly Dictionary<string, int> GraspMisses = new();             // tag → number of grasps that slip
 		public readonly Dictionary<string, Vector3> DropOffsetOnce = new();      // tag → offset applied on next drop
+		public readonly Dictionary<string, Vector3> PushOnce = new();            // tag → shove on next descent onto it
 		public Action<string>? OnDropped;
+		public int Collisions { get; private set; }
 
 		public string? Held { get; private set; }
+		private float m_HeldYawOffset;
 		private Vector3 m_Gripper;
 		private Vector3 m_From, m_To;
+		private float m_YawFrom, m_YawTo, m_Yaw;
 		private float m_Duration, m_Elapsed;
 		private float m_Open = 1f;
 
@@ -45,6 +55,7 @@ namespace LuckySort.Core.Tests
 		}
 
 		public Vector3 GripperPosition => m_Gripper;
+		public float GripperYaw => m_Yaw;
 
 		public void MoveTo(Vector3 position, float yaw, float durationSeconds)
 		{
@@ -53,6 +64,8 @@ namespace LuckySort.Core.Tests
 				position = new Vector3(position.X * MaxReach / r, position.Y, position.Z * MaxReach / r);
 			m_From = m_Gripper;
 			m_To = position;
+			m_YawFrom = m_Yaw;
+			m_YawTo = YawSign * yaw + YawOffset;
 			m_Duration = Math.Max(durationSeconds, 1e-4f);
 			m_Elapsed = 0f;
 		}
@@ -65,7 +78,12 @@ namespace LuckySort.Core.Tests
 		public void Step(float dt)
 		{
 			m_Elapsed += dt;
-			m_Gripper = Vector3.Lerp(m_From, m_To, Math.Min(1f, m_Elapsed / m_Duration));
+			float t = Math.Min(1f, m_Elapsed / m_Duration);
+			m_Gripper = Vector3.Lerp(m_From, m_To, t);
+			m_Yaw = m_YawFrom + (m_YawTo - m_YawFrom) * t;
+
+			if (Held == null)
+				CheckDescentContact();
 
 			if (Held == null && m_Open < 0.5f)
 				TryGrasp();
@@ -73,7 +91,32 @@ namespace LuckySort.Core.Tests
 				Drop();
 
 			if (Held != null)
+			{
 				Bodies[Held].Position = m_Gripper;
+				Bodies[Held].Yaw = m_Yaw + m_HeldYawOffset;
+			}
+		}
+
+		// Open fingers reaching the top of a cube they don't straddle push it aside.
+		private void CheckDescentContact()
+		{
+			foreach (var (tag, body) in Bodies)
+			{
+				bool fingersAtCube = m_Gripper.Y < body.Position.Y + body.Edge / 2f + 0.01f && m_Gripper.Y > body.Position.Y - body.Edge / 2f;
+				bool over = MathF.Abs(m_Gripper.X - body.Position.X) < body.Edge / 2f && MathF.Abs(m_Gripper.Z - body.Position.Z) < body.Edge / 2f;
+				if (!fingersAtCube || !over) continue;
+
+				if (PushOnce.Remove(tag, out Vector3 shove))
+				{
+					body.Position += shove;
+					Collisions++;
+				}
+				else if (MathF.Abs(TaskStateMachine.WrapQuarter(m_Yaw - body.Yaw)) > MaxMisalignment)
+				{
+					body.Position += new Vector3(0.012f, 0f, 0f);
+					Collisions++;
+				}
+			}
 		}
 
 		private void TryGrasp()
@@ -88,6 +131,7 @@ namespace LuckySort.Core.Tests
 					return;
 				}
 				Held = tag;
+				m_HeldYawOffset = body.Yaw - m_Yaw;
 				return;
 			}
 		}

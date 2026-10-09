@@ -67,7 +67,12 @@ namespace LuckySortStack.Episodes
 		[Group("Robot")]
 		public string GripperActuatorName = "actuator8";
 
-		[Group("Robot")] [Tooltip("Flip to -1 if the gripper rotates away from a cube's faces instead of onto them.")]
+		[Group("Robot")]
+		[Tooltip("Measure the gripper's real yaw before each descent/placement and correct it. " +
+			"Sign and offset of the yaw command are learned from these measurements.")]
+		public bool ClosedLoopYaw = true;
+
+		[Group("Robot")] [Tooltip("Initial guess for the yaw command direction (+1/-1). Learned at runtime when ClosedLoopYaw is on.")]
 		public float YawSign = 1f;
 
 		[Group("Motion")] [Units("m")] [Slider(0.15f, 0.45f)]
@@ -192,7 +197,7 @@ namespace LuckySortStack.Episodes
 				return;
 			}
 
-			var arm = new PandaManipulator(controller, gripper, graspSite) { YawSign = YawSign };
+			var arm = new PandaManipulator(controller, gripper, graspSite);
 			var settings = new MotionSettings
 			{
 				TravelHeight      = TravelHeight,
@@ -200,6 +205,8 @@ namespace LuckySortStack.Episodes
 				DescendSpeed      = DescendSpeed,
 				PlaceDescendSpeed = PlaceDescendSpeed,
 				GraspOffsetY      = GraspOffsetY,
+				ClosedLoopYaw     = ClosedLoopYaw,
+				YawSign           = YawSign,
 				MoveTolerance     = MoveTolerance,
 				MaxPickAttempts   = MaxPickAttempts,
 				MaxPlaceAttempts  = MaxPlaceAttempts,
