@@ -86,6 +86,7 @@
     <Compile Include="Source\Core\WorkspaceSpec.cs" />
     <Compile Include="Source\Episodes\EpisodeManager.cs" />
     <Compile Include="Source\Episodes\SceneWorldState.cs" />
+    <Compile Include="Source\Evaluation\StackEvaluator.cs" />
     <Compile Include="Source\Generation\TaskGenerator.cs" />
     <Compile Include="Source\Panda.cs" />
     <Compile Include="Source\Planning\StackPlanner.cs" />

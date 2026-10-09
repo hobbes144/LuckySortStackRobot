@@ -165,7 +165,13 @@ Observer.RegisterTask(int index, string description);  Observer.SetCurrentTaskIn
   pushed it aside; seed 1234 stalled 51 mm above a Large Green grasp. The cause is a yaw mismatch (a 60 mm cube
   only fits the ~80 mm jaw within about ±20°). Fix: `AlignGripper` measures the real yaw from `grasp_site`'s
   quaternion (either horizontal axis, modulo 90°) and learns `physical = sign·command + offset`.
-  **TODO:** record the learned sign/offset from the first `Yaw check:` log line, then confirm 1234 and 12345 pass.
+  **TODO:** record the learned sign/offset from the first `Yaw check:` log line.
+- **IK tracking error vs. finger clearance (2026-10-09):** with yaw fixed, seed 12345 still pushed
+  `LS_Obj_Yellow_Large` (the Large cube nearest the base, r = 0.42 m) on every attempt, with the yaw only 1.4° off.
+  The arm settles a few mm from the commanded `grasp_site` target, and that's inside `MoveTolerance` (15 mm) but
+  more than a Large cube's ~10 mm finger clearance. Fix: `CenterOverObject` hovers 40 mm above the cube,
+  measures the horizontal error and cancels it before descending. **Resolved:** random 4-colour × 4-size seeds
+  now complete in editor. Details: `ENGINEERING_NOTES.md` §3.2.
 
 ## Scene file format (for `Tools/SceneBuilder`)
 

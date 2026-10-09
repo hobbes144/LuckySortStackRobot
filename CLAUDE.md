@@ -15,11 +15,14 @@ starting any stage.
   grasp test picked `LS_Obj_Red_Large` and placed it on the red marker)
 - [x] Stage 2+3: data model (`Core/`) + seeded generator (`Generation/`), unit-tested and verified
   in editor (fingerprint matches tests, placement check 16/16, new seed → new task)
-- [ ] Stage 4–7: planner (`Planning/`), `IManipulator`/`PandaManipulator`, `TaskStateMachine`, live-stack
-  placement. Unit-tested against `FakeSim`; awaiting in-editor run (Milestones 1–3)
-- [ ] Stage 8: independent StackEvaluator (physical checks, separate from the state machine's own verifies)
-- [ ] Milestone 1: single-object pick/place
-- [ ] Milestones 2–8 (see plan §24)
+- [x] Stage 4–7: planner (`Planning/`), `IManipulator`/`PandaManipulator`, `TaskStateMachine`, live-stack
+  placement, closed-loop yaw + centring. Unit-tested against `FakeSim`; verified in editor on random
+  4-colour × 4-size seeds (Milestones 1–3)
+- [ ] Stage 8: independent `StackEvaluator` (`Evaluation/`). Unit-tested; awaiting in-editor run
+- [x] Milestones 1–3: single pick/place, one stack, multiple colours
+- [ ] Milestones 4–8 (see plan §24)
+
+Engineering decisions and the in-editor failures behind them (demo talking points): `docs/ENGINEERING_NOTES.md`.
 
 Update this checklist as milestones complete.
 
@@ -48,7 +51,7 @@ Update this checklist as milestones complete.
 - `LuckySortStack/` — the Lucky Engine project (LuckyEngine 2026.1.2, Franka Panda)
   - `Assets/Scenes/Main.hscene` — start scene
   - `Assets/Scripts/Client/Source/` — C# scripts (namespace `LuckySortStack.*`)
-    - `Core/`, `Generation/`, `Planning/`, `StateMachine/`, `Robot/Abstractions/` — **engine-independent**
+    - `Core/`, `Generation/`, `Planning/`, `StateMachine/`, `Evaluation/`, `Robot/Abstractions/` — **engine-independent**
       (System.Numerics only, no `Hazel`), unit-tested
     - `Robot/PandaManipulator.cs` — `IManipulator` over the motion graph + `actuator8`
     - `Episodes/EpisodeManager.cs` — scene-side: reads workspace, generates task, lays out pool,

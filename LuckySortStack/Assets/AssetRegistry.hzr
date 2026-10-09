@@ -293,6 +293,9 @@ Assets:
   - Handle: 15989316657234040474
     FilePath: Meshes/Default/Source/Plane.gltf
     Type: MeshSource
+  - Handle: 16013376867835925161
+    FilePath: Scripts/Client/Source/Evaluation/StackEvaluator.cs
+    Type: ScriptFile
   - Handle: 16088827179207113330
     FilePath: Materials/LuckySort/M_Red.hmaterial
     Type: Material

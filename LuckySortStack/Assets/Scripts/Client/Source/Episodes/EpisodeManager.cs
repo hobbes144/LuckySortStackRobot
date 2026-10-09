@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Hazel;
 using LuckySortStack.Core;
+using LuckySortStack.Evaluation;
 using LuckySortStack.Generation;
 using LuckySortStack.Planning;
 using LuckySortStack.Robot;
@@ -11,12 +12,12 @@ using Num = System.Numerics;
 namespace LuckySortStack.Episodes
 {
 	// Owns one episode: reads the workspace from the scene, generates a task from
-	// the seed, lays out the object pool, plans the pick/place sequence and runs
-	// the task state machine on the robot.
+	// the seed, lays out the object pool, plans the pick/place sequence, runs
+	// the task state machine on the robot, then has the StackEvaluator judge the result.
 	public class EpisodeManager : Entity
 	{
 		[Group("Task")] [Tooltip("Same seed + config = same task.")]
-		public int Seed = 1757348071;
+		public int Seed = -1399230583;
 
 		[Group("Task")] [Tooltip("Ignore Seed and draw a fresh one each Play (it is logged so it can be replayed).")]
 		public bool RandomizeSeedOnPlay = false;
@@ -103,8 +104,17 @@ namespace LuckySortStack.Episodes
 		[Group("Motion")] [ClampValue(1, 5)]
 		public int MaxPlaceAttempts = 2;
 
+		[Group("Evaluation")] [Units("m")] [Slider(0.005f, 0.05f)]
+		[Tooltip("Max horizontal offset of any stacked object from its stack centre.")]
+		public float EvalPositionTolerance = 0.015f;
+
+		[Group("Evaluation")] [Units("s")] [Slider(0.2f, 5.0f)]
+		[Tooltip("Sim time the finished scene is watched for movement before the verdict.")]
+		public float EvalStableWindow = 1.0f;
+
 		public TaskDefinition? CurrentTask { get; private set; }
 		public TaskStateMachine? StateMachine { get; private set; }
+		public StackEvaluator? Evaluator { get; private set; }
 
 		// Several EpisodeManagers would fight over the pool and the robot; only the first one runs.
 		[HideFromEditor] private static EpisodeManager? s_Active;
@@ -174,7 +184,33 @@ namespace LuckySortStack.Episodes
 				return;
 			}
 
-			StateMachine?.Update(ts);
+			if (StateMachine == null) return;
+			StateMachine.Update(ts);
+
+			// Once the robot is done (either way), judge the scene independently of the state machine.
+			if (StateMachine.IsFinished && Evaluator == null && CurrentTask != null)
+				Evaluator = new StackEvaluator(CurrentTask, new SceneWorldState(m_Pool), new EvaluationSettings
+				{
+					PositionTolerance = EvalPositionTolerance,
+					StableWindow      = EvalStableWindow,
+				});
+
+			if (Evaluator != null && !Evaluator.IsComplete)
+			{
+				Evaluator.Update(ts);
+				if (Evaluator.IsComplete) LogEvaluation(Evaluator.Report!);
+			}
+		}
+
+		private void LogEvaluation(EvaluationReport report)
+		{
+			foreach (string line in report.Describe().Split('\n'))
+				if (line.Length > 0) Log.Info("[Eval] " + line);
+
+			bool robotThinksSuccess = StateMachine!.State == TaskState.Success;
+			if (robotThinksSuccess != report.Success)
+				Log.Warn($"[Eval] State machine reported {StateMachine.State} but the evaluator says {(report.Success ? "PASS" : "FAIL")}. " +
+					"The evaluator is the source of truth.");
 		}
 
 		protected override void OnDestroy()
