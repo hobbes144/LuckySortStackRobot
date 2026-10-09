@@ -18,9 +18,12 @@ starting any stage.
 - [x] Stage 4–7: planner (`Planning/`), `IManipulator`/`PandaManipulator`, `TaskStateMachine`, live-stack
   placement, closed-loop yaw + centring. Unit-tested against `FakeSim`; verified in editor on random
   4-colour × 4-size seeds (Milestones 1–3)
-- [ ] Stage 8: independent `StackEvaluator` (`Evaluation/`). Unit-tested; awaiting in-editor run
-- [x] Milestones 1–3: single pick/place, one stack, multiple colours
-- [ ] Milestones 4–8 (see plan §24)
+- [x] Stage 8: independent `StackEvaluator` (`Evaluation/`). Verified in editor (random seed, PASS 15/15)
+- [x] Milestones 1–4: single pick/place, one stack, multiple colours, procedural tasks
+- [x] Milestone 5: failure reasons (`EvalFailure`, `EpisodeResult`, `[Result]` line), tilt check,
+  `DropPlanSteps` debug demo. Verified in editor (seed -1399230583: PASS 16/16; with `DropPlanSteps = 2`,
+  robot Success but evaluator FAIL `Eval.Incomplete` 14/16)
+- [ ] Milestones 6–8 (see plan §24)
 
 Engineering decisions and the in-editor failures behind them (demo talking points): `docs/ENGINEERING_NOTES.md`.
 

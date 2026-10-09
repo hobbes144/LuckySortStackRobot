@@ -160,11 +160,11 @@ SceneSettings:
     RegisteredTasks:
       []
   EditorCamera:
-    Position: [-0.000742316, 1.503, 0.789305]
-    FocalPoint: [1.17953, -1.66367, -1.17435]
-    Distance: 3.90855
-    Pitch: 0.944476
-    Yaw: 0.541198
+    Position: [1.34804, 0.568574, 0.0135689]
+    FocalPoint: [0, 0, 0]
+    Distance: 1.4631
+    Pitch: 0.399121
+    Yaw: -1.56073
   RendererSettings:
     Shadows:
       CascadeNearPlaneOffset: 0
@@ -1546,7 +1546,7 @@ Entities:
         - ID: 4136725278
           Name: Seed
           Type: Int
-          Value: 1
+          Value: -1399230583
         - ID: 4153252280
           Name: RandomizeSeedOnPlay
           Type: Bool
@@ -1647,6 +1647,18 @@ Entities:
           Name: MaxPlaceAttempts
           Type: Int
           Value: 2
+        - ID: 516654135
+          Name: EvalPositionTolerance
+          Type: Float
+          Value: 0.015
+        - ID: 2251669686
+          Name: EvalStableWindow
+          Type: Float
+          Value: 1
+        - ID: 2272155308
+          Name: DropPlanSteps
+          Type: Int
+          Value: 0
   - Entity: 11699848918789744984
     Domain: Client
     TagComponent:

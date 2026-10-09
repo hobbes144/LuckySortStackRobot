@@ -27,5 +27,9 @@ namespace LuckySortStack.Robot
 	{
 		Vector3 GetObjectPosition(string tag);
 		float GetObjectYaw(string tag);   // radians about world Y
+
+		// Radians between world up and whichever of the cube's face normals is closest to it:
+		// 0 when the cube rests flat on any face.
+		float GetObjectTilt(string tag);
 	}
 }

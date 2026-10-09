@@ -16,8 +16,10 @@ namespace LuckySort.Core.Tests
 		private sealed class World : IWorldState
 		{
 			public readonly Dictionary<string, Vector3> Positions = new();
+			public readonly Dictionary<string, float> Tilts = new();
 			public Vector3 GetObjectPosition(string tag) => Positions[tag];
 			public float GetObjectYaw(string tag) => 0f;
+			public float GetObjectTilt(string tag) => Tilts.TryGetValue(tag, out float t) ? t : 0f;
 		}
 
 		private static TaskDefinition Task(int seed = 1234) =>
@@ -138,6 +140,45 @@ namespace LuckySort.Core.Tests
 		}
 
 		[Fact]
+		public void TiltedObjectFailsSupportEvenAtTheRightHeight()
+		{
+			var task = Task();
+			var world = Solved(task);
+			string tag = task.Targets[0].ExpectedObjects.Last().PoolTag;
+			world.Tilts[tag] = 20f * System.MathF.PI / 180f;
+
+			var report = Inspect(task, world);
+			Assert.False(report.Stacks[0].SupportedByPreviousObject);
+			Assert.Equal(EvalFailure.Unsupported, report.PrimaryFailure);
+			Assert.Contains(report.Stacks[0].Issues, i => i.Contains(tag) && i.Contains("tilted"));
+		}
+
+		[Fact]
+		public void PassingReportHasNoFailures()
+		{
+			var task = Task();
+			var report = Inspect(task, Solved(task));
+			Assert.Empty(report.Failures);
+			Assert.Equal(EvalFailure.None, report.PrimaryFailure);
+		}
+
+		[Fact]
+		public void PrimaryFailureIsTheMostFundamental()
+		{
+			// A cube on the wrong stack is also missing from its own: WrongColor outranks Incomplete.
+			var task = Task();
+			var world = Solved(task);
+			StackTarget a = task.Targets[0], b = task.Targets[1];
+			SortObjectDefinition top = a.ExpectedObjects.Last();
+			SortObjectDefinition bTop = b.ExpectedObjects.Last();
+			world.Positions[top.PoolTag] = world.Positions[bTop.PoolTag] + new Vector3(0f, bTop.Edge / 2f + top.Edge / 2f, 0f);
+
+			var report = Inspect(task, world);
+			Assert.Equal(new[] { EvalFailure.WrongColor, EvalFailure.Incomplete }, report.Failures.Where(f => f is EvalFailure.WrongColor or EvalFailure.Incomplete));
+			Assert.Equal(EvalFailure.WrongColor, report.PrimaryFailure);
+		}
+
+		[Fact]
 		public void MovingStackFailsStability()
 		{
 			var task = Task();
@@ -196,12 +237,60 @@ namespace LuckySort.Core.Tests
 			Assert.True(report.CorrectlyStacked < task.Objects.Count);
 		}
 
-		private static (TaskStateMachine, FakeSim, TaskDefinition) RunEpisode(int seed)
+		// ── Episode results (robot verdict + evaluator verdict) ──────────────
+
+		[Fact]
+		public void CleanRunIsCategorisedAsSuccess()
 		{
-			var task = Task(seed);
+			var (machine, sim, task) = RunEpisode(1234);
+			var result = EpisodeResult.From(task, machine.Metrics, Evaluate(task, sim));
+			Assert.True(result.Success);
+			Assert.False(result.Disagreement);
+			Assert.Equal("Success", result.Category);
+			Assert.Contains("result=PASS category=Success", result.ToString());
+		}
+
+		[Fact]
+		public void TruncatedPlanSucceedsForTheRobotButNotTheEvaluator()
+		{
+			// Same as EpisodeManager.DropPlanSteps: the state machine finishes its (short) plan happily.
+			var (machine, sim, task) = RunEpisode(1234, dropSteps: 2);
+			Assert.Equal(TaskState.Success, machine.State);
+
+			var result = EpisodeResult.From(task, machine.Metrics, Evaluate(task, sim));
+			Assert.False(result.Success);
+			Assert.True(result.Disagreement);
+			Assert.Equal(EvalFailure.Incomplete, result.Evaluation.PrimaryFailure);
+			Assert.Equal("Eval.Incomplete", result.Category);
+			Assert.Equal(task.Objects.Count - 2, result.Evaluation.CorrectlyStacked);
+		}
+
+		[Fact]
+		public void RobotFailureReasonIsTheCategoryWhenTheRobotGaveUp()
+		{
+			var task = Task(7);
+			string tag = task.Targets[0].ExpectedObjects[0].PoolTag;
+			var (machine, sim, _) = RunEpisode(task, sim => sim.GraspMisses[tag] = 99);
+			Assert.Equal(TaskState.Failure, machine.State);
+
+			var result = EpisodeResult.From(task, machine.Metrics, Evaluate(task, sim));
+			Assert.False(result.Success);
+			Assert.False(result.Disagreement);
+			Assert.Equal("GraspFailed", result.Category);
+			Assert.Equal(EvalFailure.Incomplete, result.Evaluation.PrimaryFailure);
+		}
+
+		private static (TaskStateMachine, FakeSim, TaskDefinition) RunEpisode(int seed, int dropSteps = 0) =>
+			RunEpisode(Task(seed), null, dropSteps);
+
+		private static (TaskStateMachine, FakeSim, TaskDefinition) RunEpisode(TaskDefinition task, System.Action<FakeSim>? arrange, int dropSteps = 0)
+		{
 			var settings = new MotionSettings();
 			var sim = new FakeSim(task, settings.Home);
-			var machine = new TaskStateMachine(task, StackPlanner.Plan(task), sim, sim, settings);
+			arrange?.Invoke(sim);
+			var plan = StackPlanner.Plan(task);
+			plan.RemoveRange(plan.Count - dropSteps, dropSteps);
+			var machine = new TaskStateMachine(task, plan, sim, sim, settings);
 			machine.Start();
 			for (int i = 0; i < 200_000 && !machine.IsFinished; i++)
 			{

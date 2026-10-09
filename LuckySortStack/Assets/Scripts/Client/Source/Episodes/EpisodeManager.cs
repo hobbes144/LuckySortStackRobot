@@ -112,9 +112,15 @@ namespace LuckySortStack.Episodes
 		[Tooltip("Sim time the finished scene is watched for movement before the verdict.")]
 		public float EvalStableWindow = 1.0f;
 
+		[Group("Debug")] [ClampValue(0, 16)]
+		[Tooltip("Drop this many steps from the end of the plan. The state machine then 'succeeds' at a shortened " +
+			"plan and the evaluator should report the missing objects: a demo that the evaluator doesn't trust the planner.")]
+		public int DropPlanSteps = 0;
+
 		public TaskDefinition? CurrentTask { get; private set; }
 		public TaskStateMachine? StateMachine { get; private set; }
 		public StackEvaluator? Evaluator { get; private set; }
+		public EpisodeResult? Result { get; private set; }
 
 		// Several EpisodeManagers would fight over the pool and the robot; only the first one runs.
 		[HideFromEditor] private static EpisodeManager? s_Active;
@@ -207,10 +213,11 @@ namespace LuckySortStack.Episodes
 			foreach (string line in report.Describe().Split('\n'))
 				if (line.Length > 0) Log.Info("[Eval] " + line);
 
-			bool robotThinksSuccess = StateMachine!.State == TaskState.Success;
-			if (robotThinksSuccess != report.Success)
+			Result = EpisodeResult.From(CurrentTask!, StateMachine!.Metrics, report);
+			if (Result.Disagreement)
 				Log.Warn($"[Eval] State machine reported {StateMachine.State} but the evaluator says {(report.Success ? "PASS" : "FAIL")}. " +
 					"The evaluator is the source of truth.");
+			Log.Info("[Result] " + Result);
 		}
 
 		protected override void OnDestroy()
@@ -249,6 +256,12 @@ namespace LuckySortStack.Episodes
 			};
 
 			List<PlannedStep> plan = StackPlanner.Plan(CurrentTask);
+			if (DropPlanSteps > 0)
+			{
+				int drop = Math.Min(DropPlanSteps, plan.Count);
+				plan.RemoveRange(plan.Count - drop, drop);
+				Log.Warn($"[Plan] Debug: dropped the last {drop} step(s); the evaluator should report them missing.");
+			}
 			foreach (string line in StackPlanner.Describe(plan).Split('\n'))
 				if (line.Length > 0) Log.Info("[Plan] " + line);
 

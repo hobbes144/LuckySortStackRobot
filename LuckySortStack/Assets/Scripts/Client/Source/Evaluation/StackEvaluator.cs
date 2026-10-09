@@ -15,8 +15,22 @@ namespace LuckySortStack.Evaluation
 		public float MembershipRadius = 0.06f;      // an object this close (XZ) to a stack base counts as in that stack
 		public float PositionTolerance = 0.015f;    // allowed XZ offset of any stacked object from the stack base
 		public float HeightTolerance = 0.008f;      // allowed gap/penetration against the support below
+		public float TiltTolerance = 10f * MathF.PI / 180f;   // a cube leaning on an edge further than this isn't resting flat
 		public float StableWindow = 1.0f;           // sim time the scene is watched before judging
 		public float StableDrift = 0.002f;          // max movement of any object during the window
+	}
+
+	// Why an evaluation failed, most fundamental first. A report can have several; the first
+	// one present is the primary failure used to categorise the episode.
+	public enum EvalFailure
+	{
+		None,
+		WrongColor,        // an object is on another colour's stack
+		WrongOrder,        // a larger object sits on a smaller one
+		Unstable,          // something in a stack was still moving
+		Unsupported,       // floating, overhanging, sunk into the support, or tilted
+		OutOfTolerance,    // resting properly but too far from the stack centre
+		Incomplete,        // expected objects missing from their stack
 	}
 
 	public sealed class StackReport
@@ -56,11 +70,39 @@ namespace LuckySortStack.Evaluation
 			&& SupportedByPreviousObject && StackStable && AllObjectsPlaced;
 
 		public int CorrectlyStacked => Stacks.Sum(s => CountCorrectFromBottom(s));
+		public int ExpectedCount => Stacks.Sum(s => s.Expected.Count);
+
+		// Every failure category present, in EvalFailure order.
+		public List<EvalFailure> Failures
+		{
+			get
+			{
+				var list = new List<EvalFailure>();
+				if (!ColorCorrect)                                list.Add(EvalFailure.WrongColor);
+				if (!SizeOrderCorrect)                            list.Add(EvalFailure.WrongOrder);
+				if (!StackStable)                                 list.Add(EvalFailure.Unstable);
+				if (!SupportedByPreviousObject)                   list.Add(EvalFailure.Unsupported);
+				if (!PositionWithinTolerance)                     list.Add(EvalFailure.OutOfTolerance);
+				if (!AllObjectsPlaced || !ObjectCountCorrect)     list.Add(EvalFailure.Incomplete);
+				return list;
+			}
+		}
+
+		public EvalFailure PrimaryFailure
+		{
+			get
+			{
+				List<EvalFailure> failures = Failures;
+				return failures.Count == 0 ? EvalFailure.None : failures[0];
+			}
+		}
 
 		public string Describe()
 		{
 			var sb = new StringBuilder();
-			sb.Append(Success ? "PASS" : "FAIL").Append($": {CorrectlyStacked}/{Stacks.Sum(s => s.Expected.Count)} objects correctly stacked\n");
+			sb.Append(Success ? "PASS" : "FAIL").Append($": {CorrectlyStacked}/{ExpectedCount} objects correctly stacked");
+			if (!Success) sb.Append(" (").Append(string.Join(", ", Failures)).Append(')');
+			sb.Append('\n');
 			foreach (StackReport s in Stacks)
 			{
 				sb.Append($"  {s.Color.ToString().ToUpperInvariant()} {(s.Success ? "ok" : "FAIL")}: ")
@@ -160,12 +202,12 @@ namespace LuckySortStack.Evaluation
 			{
 				StackTarget target = task.Targets[i];
 				var column = columns[i].OrderBy(c => c.Pos.Y).ToList();
-				report.Stacks.Add(InspectStack(target, column, cfg, maxDrift));
+				report.Stacks.Add(InspectStack(target, column, world, cfg, maxDrift));
 			}
 			return report;
 		}
 
-		private static StackReport InspectStack(StackTarget target, List<(SortObjectDefinition Obj, Vector3 Pos)> column,
+		private static StackReport InspectStack(StackTarget target, List<(SortObjectDefinition Obj, Vector3 Pos)> column, IWorldState world,
 			EvaluationSettings cfg, IReadOnlyDictionary<string, float>? maxDrift)
 		{
 			var s = new StackReport
@@ -229,6 +271,15 @@ namespace LuckySortStack.Evaluation
 						s.Faulty.Add(obj);
 						s.Issues.Add($"{obj.PoolTag} centre overhangs {supportName} by {(overhang - below.Edge / 2f) * 1000f:F0} mm");
 					}
+				}
+
+				// A cube leaning on an edge can sit near the right height, so check it's face-down too.
+				float tilt = world.GetObjectTilt(obj.PoolTag);
+				if (tilt > cfg.TiltTolerance)
+				{
+					s.SupportedByPreviousObject = false;
+					s.Faulty.Add(obj);
+					s.Issues.Add($"{obj.PoolTag} tilted {tilt * 180f / MathF.PI:F0}° (limit {cfg.TiltTolerance * 180f / MathF.PI:F0}°)");
 				}
 
 				float gap = (pos.Y - obj.Edge / 2f) - supportTop;

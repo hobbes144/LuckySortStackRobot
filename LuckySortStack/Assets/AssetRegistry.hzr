@@ -35,6 +35,9 @@ Assets:
   - Handle: 2508645623218260593
     FilePath: ContentVault/Robots/Panda/assets/link0_11.obj
     Type: MeshSource
+  - Handle: 2720268659149619188
+    FilePath: Scripts/Client/Source/Evaluation/EpisodeResult.cs
+    Type: ScriptFile
   - Handle: 2763209391511675746
     FilePath: Materials/LuckySort/M_Yellow_Marker.hmaterial
     Type: Material

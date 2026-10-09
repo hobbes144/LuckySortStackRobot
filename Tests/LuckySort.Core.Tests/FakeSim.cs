@@ -17,6 +17,7 @@ namespace LuckySort.Core.Tests
 		{
 			public Vector3 Position;
 			public float Yaw;
+			public float Tilt;   // only set by tests; the fake never tips cubes itself
 			public float Edge;
 		}
 
@@ -78,6 +79,7 @@ namespace LuckySort.Core.Tests
 
 		public Vector3 GetObjectPosition(string tag) => Bodies[tag].Position;
 		public float GetObjectYaw(string tag) => Bodies[tag].Yaw;
+		public float GetObjectTilt(string tag) => Bodies[tag].Tilt;
 
 		public void Step(float dt)
 		{

@@ -150,8 +150,11 @@ evaluator is a separate judge:
   column is sorted by height. Objects in no column are reported as unplaced.
 - **Checks per stack** (plan §12): `ColorCorrect`, `ObjectCountCorrect`, `SizeOrderCorrect` (strictly smaller
   going up), `PositionWithinTolerance` (XZ from the stack centre), `SupportedByPreviousObject` (resting at
-  contact height with its centre over the cube below), `StackStable` (nothing moved more than 2 mm during a
-  1 s watch window), `AllObjectsPlaced`. `TaskSuccess` is the AND of all of them.
+  contact height, centre over the cube below, and **flat**: tilt ≤ 10°), `StackStable` (nothing moved more than
+  2 mm during a 1 s watch window), `AllObjectsPlaced`. `TaskSuccess` is the AND of all of them.
+- **Why a tilt check:** a 60 mm cube leaning 15° on an edge only raises its centre ~7 mm, which is inside the
+  height tolerance. Tilt is measured from the body's quaternion as the angle between world up and the closest
+  face normal, so a cube resting flat on *any* face counts as 0°.
 - **Stability needs time:** the evaluator is driven by `Update(dt)` like everything else. It snapshots poses,
   watches for `StableWindow` of sim time, then judges.
 - **Partial credit:** `CorrectlyStacked` counts, per stack, the run of objects from the bottom that are the
@@ -159,10 +162,53 @@ evaluator is a separate judge:
 - **Disagreement is logged:** if the state machine says `Success` but the evaluator says FAIL (or the reverse),
   `EpisodeManager` warns, and the evaluator wins.
 
+### Failure reasons (Milestone 5)
+
+A pass/fail bit isn't enough to benchmark with; a failure has to say *why*.
+
+- **`EvalFailure`**, ordered from most to least fundamental: `WrongColor`, `WrongOrder`, `Unstable`,
+  `Unsupported`, `OutOfTolerance`, `Incomplete`. A report lists every category present, and the first one is
+  the `PrimaryFailure`. The order matters because failures cascade: a cube on the wrong stack is also missing
+  from its own, and the root cause is `WrongColor`, not `Incomplete`.
+- **`EpisodeResult`** joins the two verdicts. The robot's `EpisodeMetrics` (attempts, duration, and its
+  `FailureReason` if it gave up) is paired with the evaluator's report. `Success` comes from the evaluator.
+  `Category` is:
+  - `Success`;
+  - the robot's own reason (`GraspFailed`, `Unreachable`, `StackCollapsed`, …) when it gave up, because it knows
+    more specifically what went wrong;
+  - `Eval.<EvalFailure>` when the robot believed it succeeded and the scene disagrees. These are the most
+    interesting failures in a benchmark: silent ones.
+- Each episode ends with one parseable line, which benchmark mode will aggregate:
+  ```text
+  [Result] seed=… task=ACF5… result=PASS category=Success stacked=15/15 robot=Success picks=15 places=15 duration=212.4s
+  ```
+
 **Talking point.** "The planner says I placed Green Small; the evaluator says Green Small isn't on the Green
-stack." That's what makes this a benchmark rather than a scripted animation.
-`EvaluatorCatchesWhatTheStateMachineMissed` shows it: a clean run, then a cube slides off after the robot's last
-check. The state machine still says `Success`, and the evaluator fails it.
+stack." That's what makes this a benchmark rather than a scripted animation. Two ways to show it:
+- **Offline:** `EvaluatorCatchesWhatTheStateMachineMissed` runs a clean episode, then a cube slides off after the
+  robot's last check. The state machine still says `Success`, and the evaluator fails it.
+- **Live in the editor:** set `EpisodeManager → Debug → DropPlanSteps` to 2. The state machine completes its
+  shortened plan and reports Success. The evaluator reports `FAIL … (Incomplete)` with the two missing cubes,
+  the disagreement warning fires, and the result line says `category=Eval.Incomplete`.
+
+Real editor output (2026-10-09, same seed both times, 4 colours × 4 sizes, 16 cubes):
+
+```text
+[Result] seed=-1399230583 task=D8A130C84A4FE2C7 result=PASS category=Success stacked=16/16 robot=Success picks=16 places=16 duration=185.7s
+
+# DropPlanSteps = 2
+[Task] ReturnHome -> Success
+[Eval] FAIL: 14/16 objects correctly stacked (Incomplete)
+[Eval]   YELLOW FAIL: Yellow Medium < Yellow Large
+[Eval]     - 2 objects, expected 4
+[Eval]     - missing: LS_Obj_Yellow_Small
+[Eval]     - missing: LS_Obj_Yellow_Tiny
+[Eval] State machine reported Success but the evaluator says FAIL. The evaluator is the source of truth.
+[Result] seed=-1399230583 task=D8A130C84A4FE2C7 result=FAIL category=Eval.Incomplete stacked=14/16 robot=Success picks=14 places=14 duration=163.3s
+```
+
+The first run also confirms that `GetObjectTilt` reads 0° for MuJoCo cubes resting flat: all 16 passed the
+support check.
 
 ---
 
