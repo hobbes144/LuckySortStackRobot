@@ -8,6 +8,9 @@
     <!-- Engine-independent task logic, compiled straight from the Lucky project. -->
     <Compile Include="..\..\LuckySortStack\Assets\Scripts\Client\Source\Core\**\*.cs" Link="Source\Core\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\LuckySortStack\Assets\Scripts\Client\Source\Generation\**\*.cs" Link="Source\Generation\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\LuckySortStack\Assets\Scripts\Client\Source\Planning\**\*.cs" Link="Source\Planning\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\LuckySortStack\Assets\Scripts\Client\Source\StateMachine\**\*.cs" Link="Source\StateMachine\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\LuckySortStack\Assets\Scripts\Client\Source\Robot\Abstractions\**\*.cs" Link="Source\Robot\Abstractions\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />

@@ -3,13 +3,16 @@ using System.Collections.Generic;
 using Hazel;
 using LuckySortStack.Core;
 using LuckySortStack.Generation;
+using LuckySortStack.Planning;
+using LuckySortStack.Robot;
+using LuckySortStack.StateMachine;
 using Num = System.Numerics;
 
 namespace LuckySortStack.Episodes
 {
 	// Owns one episode: reads the workspace from the scene, generates a task from
-	// the seed, logs it, and lays out the object pool to match.
-	// Stage 2/3: generation + layout only. Planning/execution/evaluation come later.
+	// the seed, lays out the object pool, plans the pick/place sequence and runs
+	// the task state machine on the robot.
 	public class EpisodeManager : Entity
 	{
 		[Group("Task")] [Tooltip("Same seed + config = same task.")]
@@ -52,7 +55,54 @@ namespace LuckySortStack.Episodes
 		[Group("Scene")] [Units("m")]
 		public float PlacementTolerance = 0.005f;
 
+		[Group("Robot")] [Tooltip("Run the planned pick/place sequence once the layout is verified.")]
+		public bool RunTask = true;
+
+		[Group("Robot")]
+		public string RobotTag = "Panda";
+
+		[Group("Robot")]
+		public string GraspSiteTag = "grasp_site";
+
+		[Group("Robot")]
+		public string GripperActuatorName = "actuator8";
+
+		[Group("Robot")] [Tooltip("Flip to -1 if the gripper rotates away from a cube's faces instead of onto them.")]
+		public float YawSign = 1f;
+
+		[Group("Motion")] [Units("m")] [Slider(0.15f, 0.45f)]
+		[Tooltip("Grasp-site height for all lateral moves. Must clear the tallest stack plus the held cube.")]
+		public float TravelHeight = 0.28f;
+
+		[Group("Motion")] [Units("m/s")] [Slider(0.05f, 1.0f)]
+		public float TravelSpeed = 0.40f;
+
+		[Group("Motion")] [Units("m/s")] [Slider(0.02f, 0.5f)]
+		public float DescendSpeed = 0.15f;
+
+		[Group("Motion")] [Units("m/s")] [Slider(0.02f, 0.3f)]
+		public float PlaceDescendSpeed = 0.08f;
+
+		[Group("Motion")] [Units("m")] [Slider(-0.03f, 0.03f)]
+		[Tooltip("Grasp-site height relative to the object centre when grasping/placing (0 verified in Stage 1).")]
+		public float GraspOffsetY = 0.0f;
+
+		[Group("Motion")] [Units("m")] [Slider(0.005f, 0.05f)]
+		[Tooltip("How close the grasp site must get to a target for a move to count as done.")]
+		public float MoveTolerance = 0.015f;
+
+		[Group("Motion")] [ClampValue(1, 5)]
+		[Tooltip("Pick attempts per object, including retries after a failed placement.")]
+		public int MaxPickAttempts = 3;
+
+		[Group("Motion")] [ClampValue(1, 5)]
+		public int MaxPlaceAttempts = 2;
+
 		public TaskDefinition? CurrentTask { get; private set; }
+		public TaskStateMachine? StateMachine { get; private set; }
+
+		// Several EpisodeManagers would fight over the pool and the robot; only the first one runs.
+		[HideFromEditor] private static EpisodeManager? s_Active;
 
 		[HideFromEditor] private readonly Dictionary<string, Entity> m_Pool = new Dictionary<string, Entity>();
 		[HideFromEditor] private readonly Dictionary<Entity, Vector3> m_Intended = new Dictionary<Entity, Vector3>();
@@ -60,6 +110,16 @@ namespace LuckySortStack.Episodes
 
 		protected override void OnCreate()
 		{
+			// A leftover instance from a previous Play session has the same entity ID (or no
+			// longer exists) and is simply replaced; a different live entity is a real duplicate.
+			if (s_Active != null && s_Active.ID != ID && FindEntityByID(s_Active.ID) != null)
+			{
+				Log.Error($"[Episode] More than one EpisodeManager in the scene ('{s_Active.Tag}' and '{Tag}'). " +
+					$"'{Tag}' is disabled; delete one of them.");
+				return;
+			}
+			s_Active = this;
+
 			WorkspaceSpec? workspace = ReadWorkspace();
 			if (workspace == null) return;
 
@@ -91,13 +151,68 @@ namespace LuckySortStack.Episodes
 				ApplyLayout(CurrentTask);
 				m_CheckTimer = PlacementCheckDelay;
 			}
+			else if (RunTask)
+			{
+				Log.Warn("[Episode] RunTask needs ApplyLayoutToScene; the pool isn't where the task says it is.");
+			}
 		}
 
 		protected override void OnUpdate(float ts)
 		{
-			if (m_CheckTimer < 0f) return;
-			m_CheckTimer -= ts;
-			if (m_CheckTimer < 0f) CheckPlacement();
+			if (s_Active != this) return;
+
+			if (m_CheckTimer >= 0f)
+			{
+				m_CheckTimer -= ts;
+				if (m_CheckTimer < 0f && CheckPlacement() && RunTask)
+					StartTask();
+				return;
+			}
+
+			StateMachine?.Update(ts);
+		}
+
+		protected override void OnDestroy()
+		{
+			if (s_Active == this) s_Active = null;
+		}
+
+		private void StartTask()
+		{
+			if (CurrentTask == null) return;
+
+			Entity? robot     = FindEntityByTag(RobotTag);
+			Entity? graspSite = FindEntityByTag(GraspSiteTag);
+			RobotControllerComponent? controller = robot?.GetComponent<RobotControllerComponent>();
+			MujocoActuator? gripper = robot?.GetComponent<MujocoSceneComponent>()?.GetActuator(GripperActuatorName);
+			if (controller == null || gripper == null || graspSite == null)
+			{
+				Log.Error($"[Episode] Robot wiring incomplete: robot '{RobotTag}' controller={controller != null} " +
+					$"gripper '{GripperActuatorName}'={gripper != null} grasp site '{GraspSiteTag}'={graspSite != null}");
+				return;
+			}
+
+			var arm = new PandaManipulator(controller, gripper, graspSite) { YawSign = YawSign };
+			var settings = new MotionSettings
+			{
+				TravelHeight      = TravelHeight,
+				TravelSpeed       = TravelSpeed,
+				DescendSpeed      = DescendSpeed,
+				PlaceDescendSpeed = PlaceDescendSpeed,
+				GraspOffsetY      = GraspOffsetY,
+				MoveTolerance     = MoveTolerance,
+				MaxPickAttempts   = MaxPickAttempts,
+				MaxPlaceAttempts  = MaxPlaceAttempts,
+			};
+
+			List<PlannedStep> plan = StackPlanner.Plan(CurrentTask);
+			foreach (string line in StackPlanner.Describe(plan).Split('\n'))
+				if (line.Length > 0) Log.Info("[Plan] " + line);
+
+			StateMachine = new TaskStateMachine(CurrentTask, plan, arm, new SceneWorldState(m_Pool), settings);
+			StateMachine.Log += message => Log.Info("[Task] " + message);
+			StateMachine.StateChanged += (from, to) => Log.Info($"[Task] {from} -> {to}");
+			StateMachine.Start();
 		}
 
 		// Build the generator's view of the workspace from actual scene geometry.
@@ -172,7 +287,7 @@ namespace LuckySortStack.Episodes
 
 		// Placement by transform write before physics starts is an unverified engine
 		// behaviour for MuJoCo bodies (see LUCKY_API_NOTES §8). This makes it obvious.
-		private void CheckPlacement()
+		private bool CheckPlacement()
 		{
 			int ok = 0;
 			foreach (var kv in m_Intended)
@@ -185,9 +300,12 @@ namespace LuckySortStack.Episodes
 			}
 
 			if (ok == m_Intended.Count)
+			{
 				Log.Info($"[Episode] Placement check passed: {ok}/{m_Intended.Count} objects within {PlacementTolerance * 1000f:F0} mm.");
-			else
-				Log.Warn($"[Episode] Placement check FAILED: {ok}/{m_Intended.Count} objects within tolerance.");
+				return true;
+			}
+			Log.Warn($"[Episode] Placement check FAILED: {ok}/{m_Intended.Count} objects within tolerance. Task not started.");
+			return false;
 		}
 
 		private static void LogTask(TaskDefinition task)

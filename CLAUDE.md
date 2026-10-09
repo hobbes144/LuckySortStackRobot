@@ -15,8 +15,9 @@ starting any stage.
   grasp test picked `LS_Obj_Red_Large` and placed it on the red marker)
 - [x] Stage 2+3: data model (`Core/`) + seeded generator (`Generation/`), unit-tested and verified
   in editor (fingerprint matches tests, placement check 16/16, new seed → new task)
-- [ ] Stage 4: planner (task → ordered pick/place actions)
-- [ ] Stage 5–7: RobotManipulator, task state machine, stack placement → Milestones 1–3
+- [ ] Stage 4–7: planner (`Planning/`), `IManipulator`/`PandaManipulator`, `TaskStateMachine`, live-stack
+  placement. Unit-tested against `FakeSim`; awaiting in-editor run (Milestones 1–3)
+- [ ] Stage 8: independent StackEvaluator (physical checks, separate from the state machine's own verifies)
 - [ ] Milestone 1: single-object pick/place
 - [ ] Milestones 2–8 (see plan §24)
 
@@ -47,8 +48,12 @@ Update this checklist as milestones complete.
 - `LuckySortStack/` — the Lucky Engine project (LuckyEngine 2026.1.2, Franka Panda)
   - `Assets/Scenes/Main.hscene` — start scene
   - `Assets/Scripts/Client/Source/` — C# scripts (namespace `LuckySortStack.*`)
-    - `Core/`, `Generation/` — **engine-independent** (System.Numerics only, no `Hazel`), unit-tested
-    - `Episodes/EpisodeManager.cs` — scene-side: reads workspace, generates task, lays out pool
+    - `Core/`, `Generation/`, `Planning/`, `StateMachine/`, `Robot/Abstractions/` — **engine-independent**
+      (System.Numerics only, no `Hazel`), unit-tested
+    - `Robot/PandaManipulator.cs` — `IManipulator` over the motion graph + `actuator8`
+    - `Episodes/EpisodeManager.cs` — scene-side: reads workspace, generates task, lays out pool,
+      plans and runs the `TaskStateMachine`. Exactly one per scene (extra instances disable themselves)
+    - `Episodes/SceneWorldState.cs` — `IWorldState` over the pool entities
     - `Panda.cs` — Stage 0/1 smoke test (off unless `RunSmokeTest`)
   - `Assets/ContentVault/Robots/Panda/` — MJCF + motion graph
 - `Tools/SceneBuilder/` — generates the workspace (mat, stack markers, object pool, materials)
@@ -56,7 +61,9 @@ Update this checklist as milestones complete.
   replaces them. Layout constants live in its `Layout.Default`.
   **The Lucky editor must be closed** when it runs (editor autosave overwrites the scene).
   Run: `dotnet run --project Tools/SceneBuilder -- LuckySortStack`
-- `Tests/LuckySort.Core.Tests/` — xunit tests compiling `Core/` + `Generation/` directly.
+- `Tests/LuckySort.Core.Tests/` — xunit tests compiling the engine-independent folders directly.
+  `FakeSim` is a kinematic stand-in for arm + physics (with fault injection) so whole episodes
+  run offline.
   Run: `dotnet test Tests/LuckySort.Core.Tests`. `GoldenSeedIsUnchanged` pins seed 1234's
   fingerprint; changing it means every recorded seed now maps to a different task.
 - `Python/` — optional gRPC experiment runner (late stage only)

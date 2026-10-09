@@ -1201,69 +1201,6 @@ Entities:
       Visible: true
     MujocoGeomComponent:
       ID: 54
-  - Entity: 8287679044414023914
-    Domain: Client
-    TagComponent:
-      Tag: EpisodeGenerator
-    Parent: 0
-    Children:
-      []
-    TransformComponent:
-      Position: [0, 0, 0]
-      Rotation: [0, 0, 0]
-      Scale: [1, 1, 1]
-    ScriptComponent:
-      ScriptID: 3643450137
-      ScriptName: LuckySortStack.Episodes.EpisodeManager
-      Fields:
-        - ID: 4136725278
-          Name: Seed
-          Type: Int
-          Value: 1234
-        - ID: 4153252280
-          Name: RandomizeSeedOnPlay
-          Type: Bool
-          Value: false
-        - ID: 2955731747
-          Name: NumColors
-          Type: Int
-          Value: 3
-        - ID: 1046830283
-          Name: MinObjectsPerColor
-          Type: Int
-          Value: 2
-        - ID: 1924557481
-          Name: MaxObjectsPerColor
-          Type: Int
-          Value: 3
-        - ID: 601247915
-          Name: NumSizeTiers
-          Type: Int
-          Value: 3
-        - ID: 922101446
-          Name: RandomizePositions
-          Type: Bool
-          Value: true
-        - ID: 43849043
-          Name: RandomizeRotations
-          Type: Bool
-          Value: true
-        - ID: 2256219274
-          Name: ApplyLayoutToScene
-          Type: Bool
-          Value: true
-        - ID: 996079541
-          Name: ParkingX
-          Type: Float
-          Value: -0.35
-        - ID: 1374167851
-          Name: PlacementCheckDelay
-          Type: Float
-          Value: 0.5
-        - ID: 3454917387
-          Name: PlacementTolerance
-          Type: Float
-          Value: 0.005
   - Entity: 8698339192316668156
     Domain: Client
     TagComponent:
@@ -1654,6 +1591,58 @@ Entities:
           Name: PlacementTolerance
           Type: Float
           Value: 0.005
+        - ID: 2572722687
+          Name: RunTask
+          Type: Bool
+          Value: true
+        - ID: 750767425
+          Name: RobotTag
+          Type: String
+          Value: Panda
+        - ID: 3327293225
+          Name: GraspSiteTag
+          Type: String
+          Value: grasp_site
+        - ID: 487840850
+          Name: GripperActuatorName
+          Type: String
+          Value: actuator8
+        - ID: 98478893
+          Name: YawSign
+          Type: Float
+          Value: 1
+        - ID: 3800623324
+          Name: TravelHeight
+          Type: Float
+          Value: 0.28
+        - ID: 4148609938
+          Name: TravelSpeed
+          Type: Float
+          Value: 0.4
+        - ID: 216739710
+          Name: DescendSpeed
+          Type: Float
+          Value: 0.15
+        - ID: 891530221
+          Name: PlaceDescendSpeed
+          Type: Float
+          Value: 0.08
+        - ID: 1676947912
+          Name: GraspOffsetY
+          Type: Float
+          Value: 0
+        - ID: 4263243907
+          Name: MoveTolerance
+          Type: Float
+          Value: 0.015
+        - ID: 3390709724
+          Name: MaxPickAttempts
+          Type: Int
+          Value: 3
+        - ID: 86247624
+          Name: MaxPlaceAttempts
+          Type: Int
+          Value: 2
   - Entity: 11699848918789744984
     Domain: Client
     TagComponent:

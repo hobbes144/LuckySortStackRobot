@@ -1,0 +1,115 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
+using LuckySortStack.Core;
+using LuckySortStack.Robot;
+
+namespace LuckySort.Core.Tests
+{
+	// Minimal kinematic stand-in for the arm + MuJoCo: the gripper moves linearly to
+	// its target over the commanded duration; closing near an object picks it up;
+	// opening drops it onto whatever is below. Faults can be injected per object.
+	public sealed class FakeSim : IManipulator, IWorldState
+	{
+		public sealed class Body
+		{
+			public Vector3 Position;
+			public float Yaw;
+			public float Edge;
+		}
+
+		public readonly Dictionary<string, Body> Bodies = new();
+		public float SurfaceY = 0.01f;
+		public float MaxReach = 0.80f;   // targets beyond this horizontal radius are clamped
+
+		// Fault injection.
+		public readonly Dictionary<string, int> GraspMisses = new();             // tag → number of grasps that slip
+		public readonly Dictionary<string, Vector3> DropOffsetOnce = new();      // tag → offset applied on next drop
+		public Action<string>? OnDropped;
+
+		public string? Held { get; private set; }
+		private Vector3 m_Gripper;
+		private Vector3 m_From, m_To;
+		private float m_Duration, m_Elapsed;
+		private float m_Open = 1f;
+
+		public FakeSim(TaskDefinition task, Vector3 start)
+		{
+			foreach (var o in task.Objects)
+				Bodies[o.PoolTag] = new Body { Position = o.InitialPosition, Yaw = o.InitialYaw, Edge = o.Edge };
+			// Objects spawn slightly above the surface; settle them like physics would.
+			foreach (var b in Bodies.Values)
+				b.Position = new Vector3(b.Position.X, SurfaceY + b.Edge / 2f, b.Position.Z);
+			m_Gripper = m_From = m_To = start;
+		}
+
+		public Vector3 GripperPosition => m_Gripper;
+
+		public void MoveTo(Vector3 position, float yaw, float durationSeconds)
+		{
+			float r = MathF.Sqrt(position.X * position.X + position.Z * position.Z);
+			if (r > MaxReach)
+				position = new Vector3(position.X * MaxReach / r, position.Y, position.Z * MaxReach / r);
+			m_From = m_Gripper;
+			m_To = position;
+			m_Duration = Math.Max(durationSeconds, 1e-4f);
+			m_Elapsed = 0f;
+		}
+
+		public void SetGripper(float openFraction) => m_Open = openFraction;
+
+		public Vector3 GetObjectPosition(string tag) => Bodies[tag].Position;
+		public float GetObjectYaw(string tag) => Bodies[tag].Yaw;
+
+		public void Step(float dt)
+		{
+			m_Elapsed += dt;
+			m_Gripper = Vector3.Lerp(m_From, m_To, Math.Min(1f, m_Elapsed / m_Duration));
+
+			if (Held == null && m_Open < 0.5f)
+				TryGrasp();
+			else if (Held != null && m_Open >= 0.5f)
+				Drop();
+
+			if (Held != null)
+				Bodies[Held].Position = m_Gripper;
+		}
+
+		private void TryGrasp()
+		{
+			foreach (var (tag, body) in Bodies)
+			{
+				if (Vector3.Distance(body.Position, m_Gripper) > 0.6f * body.Edge) continue;
+				if (GraspMisses.TryGetValue(tag, out int misses) && misses > 0)
+				{
+					GraspMisses[tag] = misses - 1;
+					m_Open = 1f;   // slipped: behave as if nothing was caught this close
+					return;
+				}
+				Held = tag;
+				return;
+			}
+		}
+
+		private void Drop()
+		{
+			string tag = Held!;
+			Held = null;
+			Body body = Bodies[tag];
+			Vector3 p = body.Position;
+			if (DropOffsetOnce.Remove(tag, out Vector3 offset)) p += offset;
+
+			float support = SurfaceY;
+			foreach (var (other, ob) in Bodies)
+			{
+				if (other == tag) continue;
+				float reach = (ob.Edge + body.Edge) / 2f;
+				if (MathF.Abs(ob.Position.X - p.X) < reach && MathF.Abs(ob.Position.Z - p.Z) < reach && ob.Position.Y < p.Y)
+					support = Math.Max(support, ob.Position.Y + ob.Edge / 2f);
+			}
+			body.Position = new Vector3(p.X, support + body.Edge / 2f, p.Z);
+			OnDropped?.Invoke(tag);
+		}
+	}
+}
