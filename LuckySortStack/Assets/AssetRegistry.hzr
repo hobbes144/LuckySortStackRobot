@@ -68,6 +68,9 @@ Assets:
   - Handle: 3881008803322376566
     FilePath: ContentVault/Robots/Panda/assets/finger_1.obj
     Type: MeshSource
+  - Handle: 4054362971200105164
+    FilePath: Scripts/Client/Source/Episodes/EpisodeManager.cs
+    Type: ScriptFile
   - Handle: 4241663774595030205
     FilePath: Meshes/Default/Cube.hsmesh
     Type: StaticMesh
@@ -92,6 +95,9 @@ Assets:
   - Handle: 5712451343787241409
     FilePath: Materials/Default/GroundMaterial.hmaterial
     Type: Material
+  - Handle: 5800073677859919557
+    FilePath: Scripts/Client/Source/Core/WorkspaceSpec.cs
+    Type: ScriptFile
   - Handle: 6394010865883251307
     FilePath: Scripts/Intermediates/Debug/LuckySortStack.AssemblyInfo.cs
     Type: ScriptFile
@@ -122,6 +128,9 @@ Assets:
   - Handle: 7662388003140614263
     FilePath: ContentVault/Robots/Panda/assets/hand_2.obj
     Type: MeshSource
+  - Handle: 7977014066937306277
+    FilePath: Scripts/Client/Source/Core/TaskConfig.cs
+    Type: ScriptFile
   - Handle: 8081499440683993017
     FilePath: Meshes/Default/Source/Cone.gltf
     Type: MeshSource
@@ -176,6 +185,9 @@ Assets:
   - Handle: 10407689879994103875
     FilePath: Scripts/Client/obj/project.assets.json
     Type: Motion
+  - Handle: 10486910630136514400
+    FilePath: Scripts/Client/Source/Core/TaskDefinition.cs
+    Type: ScriptFile
   - Handle: 10542917690917552195
     FilePath: ContentVault/Robots/Panda/assets/link0_3.obj
     Type: MeshSource
@@ -290,6 +302,12 @@ Assets:
   - Handle: 17062873966744480937
     FilePath: Scripts/Intermediates/Debug/LuckySortStack.sourcelink.json
     Type: Motion
+  - Handle: 17086548900497256716
+    FilePath: Scripts/Client/Source/Generation/TaskGenerator.cs
+    Type: ScriptFile
+  - Handle: 17319205518292757027
+    FilePath: Scripts/Client/Source/Core/ObjectTypes.cs
+    Type: ScriptFile
   - Handle: 17374801328266119523
     FilePath: Meshes/Default/Source/Sphere.gltf
     Type: MeshSource
