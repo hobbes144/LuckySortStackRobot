@@ -28,6 +28,10 @@ namespace LuckySort.Core.Tests
 		public float YawSign = 1f;
 		public float YawOffset = 0f;
 		public float MaxMisalignment = 10f * MathF.PI / 180f;   // fingers clear the cube within this
+		public float FingerOpening = 0.08f;                     // Panda: 40 mm per finger
+
+		// Steady-state tracking error: the grasp site settles this far from where it was commanded.
+		public Vector3 TrackingBias = Vector3.Zero;
 
 		// Fault injection.
 		public readonly Dictionary<string, int> GraspMisses = new();             // tag → number of grasps that slip
@@ -63,7 +67,7 @@ namespace LuckySort.Core.Tests
 			if (r > MaxReach)
 				position = new Vector3(position.X * MaxReach / r, position.Y, position.Z * MaxReach / r);
 			m_From = m_Gripper;
-			m_To = position;
+			m_To = position + TrackingBias;
 			m_YawFrom = m_Yaw;
 			m_YawTo = YawSign * yaw + YawOffset;
 			m_Duration = Math.Max(durationSeconds, 1e-4f);
@@ -97,14 +101,16 @@ namespace LuckySort.Core.Tests
 			}
 		}
 
-		// Open fingers reaching the top of a cube they don't straddle push it aside.
+		// Open fingers reaching the top of a cube they don't straddle push it aside: either the
+		// gripper is twisted relative to the cube, or off-centre by more than the finger clearance.
 		private void CheckDescentContact()
 		{
 			foreach (var (tag, body) in Bodies)
 			{
 				bool fingersAtCube = m_Gripper.Y < body.Position.Y + body.Edge / 2f + 0.01f && m_Gripper.Y > body.Position.Y - body.Edge / 2f;
-				bool over = MathF.Abs(m_Gripper.X - body.Position.X) < body.Edge / 2f && MathF.Abs(m_Gripper.Z - body.Position.Z) < body.Edge / 2f;
-				if (!fingersAtCube || !over) continue;
+				Vector3 offset = new Vector3(m_Gripper.X - body.Position.X, 0f, m_Gripper.Z - body.Position.Z);
+				bool near = offset.Length() < (body.Edge + FingerOpening) / 2f;
+				if (!fingersAtCube || !near) continue;
 
 				if (PushOnce.Remove(tag, out Vector3 shove))
 				{
@@ -114,6 +120,11 @@ namespace LuckySort.Core.Tests
 				else if (MathF.Abs(TaskStateMachine.WrapQuarter(m_Yaw - body.Yaw)) > MaxMisalignment)
 				{
 					body.Position += new Vector3(0.012f, 0f, 0f);
+					Collisions++;
+				}
+				else if (offset.Length() > (FingerOpening - body.Edge) / 2f)
+				{
+					body.Position -= Vector3.Normalize(offset) * 0.012f;   // finger lands on the near edge
 					Collisions++;
 				}
 			}

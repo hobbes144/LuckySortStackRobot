@@ -151,6 +151,29 @@ namespace LuckySort.Core.Tests
 			Assert.Contains(run.Log, l => l.StartsWith("Collision:"));
 		}
 
+		// 11 mm of tracking error is inside MoveTolerance but more than a Large cube's ~10 mm finger clearance.
+		private static readonly Vector3 k_TrackingBias = new Vector3(0.009f, 0f, -0.006f);
+
+		[Fact]
+		public void TrackingErrorWithoutCentringPushesTheLargeCube()
+		{
+			var run = Execute(Setup(Task(12345), sim => sim.TrackingBias = k_TrackingBias, s => s.MaxCenterIterations = 0));
+			Assert.True(run.Sim.Collisions > 0);
+			Assert.Contains(run.Log, l => l.StartsWith("Collision:"));
+		}
+
+		[Fact]
+		public void TrackingErrorIsCentredOutBeforeDescent()
+		{
+			foreach (int seed in new[] { 12345, 1234, 42 })
+			{
+				var run = Execute(Setup(Task(seed), sim => sim.TrackingBias = k_TrackingBias));
+				Assert.Equal(TaskState.Success, run.Machine.State);
+				Assert.Equal(0, run.Sim.Collisions);
+				Assert.Contains(run.Log, l => l.StartsWith("Centring:"));
+			}
+		}
+
 		[Fact]
 		public void PushedObjectIsReapproachedFromItsNewPosition()
 		{
@@ -243,7 +266,7 @@ namespace LuckySort.Core.Tests
 
 			var cycle = new[]
 			{
-				TaskState.SelectTarget, TaskState.MoveAboveObject, TaskState.AlignGripper, TaskState.MoveToObject, TaskState.Grasp,
+				TaskState.SelectTarget, TaskState.MoveAboveObject, TaskState.AlignGripper, TaskState.CenterOverObject, TaskState.MoveToObject, TaskState.Grasp,
 				TaskState.Lift, TaskState.VerifyGrasp, TaskState.MoveToStack, TaskState.AlignGripper, TaskState.Place,
 				TaskState.Release, TaskState.Retreat, TaskState.VerifyPlacement,
 			};

@@ -13,6 +13,7 @@ namespace LuckySortStack.StateMachine
 		SelectTarget,
 		MoveAboveObject,
 		AlignGripper,      // measure the real gripper yaw and correct it before descending
+		CenterOverObject,  // drop to just above the object and cancel the horizontal tracking error
 		MoveToObject,
 		Grasp,
 		Lift,
@@ -48,6 +49,12 @@ namespace LuckySortStack.StateMachine
 		public float YawTolerance = 6f * MathF.PI / 180f;
 		public float AlignDwell = 0.25f;            // let the wrist settle before measuring
 		public int MaxAlignIterations = 4;
+
+		// Position calibration before the final descent. The arm settles with a few mm of tracking error
+		// that varies with its configuration, and a Large cube leaves only ~10 mm per finger.
+		public float PreGraspClearance = 0.04f;     // grasp-site height above the object's top while centring
+		public float CenterTolerance = 0.003f;      // horizontal grasp-site error allowed before descending
+		public int MaxCenterIterations = 3;
 
 		public float GraspOffsetY = 0.0f;           // grasp-site height relative to object centre
 		public float PushTolerance = 0.008f;        // object moved this far during descent = collision
@@ -105,6 +112,8 @@ namespace LuckySortStack.StateMachine
 		private float m_CommandedYaw;
 		private Vector3 m_PlaceCentre;
 		private Vector3 m_ObjectAtDescent;
+		private Vector3 m_PosCorrection;            // added to pick targets to cancel the measured tracking error
+		private int m_CenterIteration;
 
 		private float m_YawSign;
 		private float m_YawOffset;
@@ -150,6 +159,7 @@ namespace LuckySortStack.StateMachine
 				case TaskState.SelectTarget:    UpdateSelectTarget(); break;
 				case TaskState.MoveAboveObject: UpdateMoveAboveObject(); break;
 				case TaskState.AlignGripper:    UpdateAlignGripper(); break;
+				case TaskState.CenterOverObject: UpdateCenterOverObject(); break;
 				case TaskState.MoveToObject:    UpdateMoveToObject(); break;
 				case TaskState.Grasp:           if (m_StateTime >= m_Cfg.GripperCloseTime) TransitionTo(TaskState.Lift); break;
 				case TaskState.Lift:            OnMoveDone(TaskState.VerifyGrasp); break;
@@ -186,14 +196,19 @@ namespace LuckySortStack.StateMachine
 					m_PickAttempts++;
 					Metrics.PickAttempts++;
 					m_Arm.SetGripper(1f);
+					m_PosCorrection = Vector3.Zero;
 					m_ObjectAtDescent = ObjectPos(step!);
 					StartMove(new Vector3(m_ObjectAtDescent.X, m_Cfg.TravelHeight, m_ObjectAtDescent.Z), CommandFor(ObjectYaw(step!)), m_Cfg.TravelSpeed);
 					break;
 				}
+				case TaskState.CenterOverObject:
+					m_CenterIteration = 0;
+					StartMove(PreGraspPoint(step!) + m_PosCorrection, m_CommandedYaw, m_Cfg.DescendSpeed);
+					break;
 				case TaskState.MoveToObject:
 				{
 					m_ObjectAtDescent = ObjectPos(step!);   // re-read: the object may have shifted
-					StartMove(m_ObjectAtDescent + new Vector3(0f, m_Cfg.GraspOffsetY, 0f), m_CommandedYaw, m_Cfg.DescendSpeed);
+					StartMove(m_ObjectAtDescent + new Vector3(0f, m_Cfg.GraspOffsetY, 0f) + m_PosCorrection, m_CommandedYaw, m_Cfg.DescendSpeed);
 					break;
 				}
 				case TaskState.Grasp:
@@ -252,7 +267,7 @@ namespace LuckySortStack.StateMachine
 			MoveStatus status = CheckMove();
 			if (status == MoveStatus.Running) return;
 			if (status == MoveStatus.TimedOut) { MoveFailed("approach"); return; }
-			BeginAlign(ObjectYaw(CurrentStep!), TaskState.MoveToObject);
+			BeginAlign(ObjectYaw(CurrentStep!), TaskState.CenterOverObject);
 		}
 
 		private void UpdateMoveToStack()
@@ -321,15 +336,51 @@ namespace LuckySortStack.StateMachine
 			m_StateTime = 0f;
 		}
 
+		// Hover just above the object and measure where the grasp site really is. The miss is
+		// accumulated into m_PosCorrection, which the final descent also applies.
+		private void UpdateCenterOverObject()
+		{
+			MoveStatus status = CheckMove();
+			if (status == MoveStatus.TimedOut) { MoveFailed("pre-grasp hover"); return; }
+			if (status == MoveStatus.Running || m_StateTime < m_MoveDuration + m_Cfg.AlignDwell) return;
+
+			Vector3 desired = PreGraspPoint(CurrentStep!);
+			Vector3 g = m_Arm.GripperPosition;
+			Vector3 error = new Vector3(desired.X - g.X, 0f, desired.Z - g.Z);
+			if (error.Length() <= m_Cfg.CenterTolerance)
+			{
+				TransitionTo(TaskState.MoveToObject);
+				return;
+			}
+
+			if (m_CenterIteration >= m_Cfg.MaxCenterIterations)
+			{
+				Emit($"Grasp site still {error.Length() * 1000f:F1} mm off-centre after {m_CenterIteration} corrections; descending anyway");
+				TransitionTo(TaskState.MoveToObject);
+				return;
+			}
+
+			m_PosCorrection += error;
+			m_CenterIteration++;
+			Emit($"Centring: grasp site off by ({-error.X * 1000f:F1}, {-error.Z * 1000f:F1}) mm (x, z); " +
+				$"correction now ({m_PosCorrection.X * 1000f:F1}, {m_PosCorrection.Z * 1000f:F1}) mm");
+			StartMove(desired + m_PosCorrection, m_CommandedYaw, m_Cfg.DescendSpeed);
+			m_StateTime = 0f;
+		}
+
 		private void UpdateMoveToObject()
 		{
 			PlannedStep step = CurrentStep!;
-			float pushed = HorizontalDistance(ObjectPos(step), m_ObjectAtDescent);
+			Vector3 obj = ObjectPos(step);
+			float pushed = HorizontalDistance(obj, m_ObjectAtDescent);
 			if (pushed > m_Cfg.PushTolerance)
 			{
 				Metrics.GraspFailures++;
+				Vector3 g = m_Arm.GripperPosition;
 				Emit($"Collision: {step.Object.PoolTag} pushed {pushed * 1000f:F0} mm during descent " +
-					$"(gripper yaw {Deg(m_Arm.GripperYaw)}°, object yaw {Deg(ObjectYaw(step))}°)");
+					$"(gripper yaw {Deg(m_Arm.GripperYaw)}°, object yaw {Deg(ObjectYaw(step))}°, " +
+					$"grasp site ({(g.X - m_ObjectAtDescent.X) * 1000f:F1}, {(g.Z - m_ObjectAtDescent.Z) * 1000f:F1}) mm (x, z) " +
+					$"from where the object was, {(g.Y - obj.Y) * 1000f:F0} mm above its centre)");
 				BeginRecovery(FailureReason.GraspFailed);
 				return;
 			}
@@ -420,7 +471,7 @@ namespace LuckySortStack.StateMachine
 			string detail = $"{what}: grasp site {Vector3.Distance(g, m_MoveTarget) * 1000f:F0} mm from target after {m_StateTime:F1}s. " +
 				$"target ({m_MoveTarget.X:F3}, {m_MoveTarget.Y:F3}, {m_MoveTarget.Z:F3}) r={MathF.Sqrt(m_MoveTarget.X * m_MoveTarget.X + m_MoveTarget.Z * m_MoveTarget.Z):F3}, " +
 				$"gripper ({g.X:F3}, {g.Y:F3}, {g.Z:F3}), yaw cmd {Deg(m_CommandedYaw)}° measured {Deg(m_Arm.GripperYaw)}°";
-			if (step != null && (State == TaskState.MoveAboveObject || State == TaskState.MoveToObject))
+			if (step != null && (State == TaskState.MoveAboveObject || State == TaskState.CenterOverObject || State == TaskState.MoveToObject))
 			{
 				detail += $", object moved {HorizontalDistance(ObjectPos(step), m_ObjectAtDescent) * 1000f:F0} mm";
 				Emit("Move failed: " + detail);
@@ -527,6 +578,12 @@ namespace LuckySortStack.StateMachine
 			foreach (var (obj, _) in m_Placed[stackIndex])
 				live.Add((m_World.GetObjectPosition(obj.PoolTag), obj.Edge));
 			return live;
+		}
+
+		private Vector3 PreGraspPoint(PlannedStep step)
+		{
+			Vector3 obj = ObjectPos(step);
+			return new Vector3(obj.X, obj.Y + step.Object.Edge / 2f + m_Cfg.PreGraspClearance, obj.Z);
 		}
 
 		private Vector3 ObjectPos(PlannedStep step) => m_World.GetObjectPosition(step.Object.PoolTag);

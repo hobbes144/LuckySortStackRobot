@@ -16,23 +16,23 @@ namespace LuckySortStack.Episodes
 	public class EpisodeManager : Entity
 	{
 		[Group("Task")] [Tooltip("Same seed + config = same task.")]
-		public int Seed = 1234;
+		public int Seed = 1757348071;
 
 		[Group("Task")] [Tooltip("Ignore Seed and draw a fresh one each Play (it is logged so it can be replayed).")]
 		public bool RandomizeSeedOnPlay = false;
 
 		[Group("Task")] [ClampValue(1, 4)]
-		public int NumColors = 3;
+		public int NumColors = 4;
 
 		[Group("Task")] [ClampValue(1, 4)]
 		public int MinObjectsPerColor = 2;
 
 		[Group("Task")] [ClampValue(1, 4)]
-		public int MaxObjectsPerColor = 3;
+		public int MaxObjectsPerColor = 4;
 
 		[Group("Task")] [ClampValue(1, 4)]
 		[Tooltip("Number of size tiers in play, from Large downwards.")]
-		public int NumSizeTiers = 3;
+		public int NumSizeTiers = 4;
 
 		[Group("Task")]
 		public bool RandomizePositions = true;

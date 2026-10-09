@@ -160,11 +160,11 @@ SceneSettings:
     RegisteredTasks:
       []
   EditorCamera:
-    Position: [-0.190625, 1.9268, 1.05193]
+    Position: [-0.000742316, 1.503, 0.789305]
     FocalPoint: [1.17953, -1.66367, -1.17435]
-    Distance: 4.4413
-    Pitch: 0.941476
-    Yaw: 0.551699
+    Distance: 3.90855
+    Pitch: 0.944476
+    Yaw: 0.541198
   RendererSettings:
     Shadows:
       CascadeNearPlaneOffset: 0
@@ -1546,7 +1546,7 @@ Entities:
         - ID: 4136725278
           Name: Seed
           Type: Int
-          Value: 1111
+          Value: 1
         - ID: 4153252280
           Name: RandomizeSeedOnPlay
           Type: Bool
@@ -1554,7 +1554,7 @@ Entities:
         - ID: 2955731747
           Name: NumColors
           Type: Int
-          Value: 3
+          Value: 4
         - ID: 1046830283
           Name: MinObjectsPerColor
           Type: Int
@@ -1562,11 +1562,11 @@ Entities:
         - ID: 1924557481
           Name: MaxObjectsPerColor
           Type: Int
-          Value: 3
+          Value: 4
         - ID: 601247915
           Name: NumSizeTiers
           Type: Int
-          Value: 3
+          Value: 4
         - ID: 922101446
           Name: RandomizePositions
           Type: Bool
@@ -1607,6 +1607,10 @@ Entities:
           Name: GripperActuatorName
           Type: String
           Value: actuator8
+        - ID: 2516126580
+          Name: ClosedLoopYaw
+          Type: Bool
+          Value: true
         - ID: 98478893
           Name: YawSign
           Type: Float
