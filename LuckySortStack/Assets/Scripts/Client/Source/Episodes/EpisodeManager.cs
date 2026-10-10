@@ -5,6 +5,7 @@ using LuckySortStack.Core;
 using LuckySortStack.Evaluation;
 using LuckySortStack.Generation;
 using LuckySortStack.Planning;
+using LuckySortStack.Recording;
 using LuckySortStack.Robot;
 using LuckySortStack.StateMachine;
 using Num = System.Numerics;
@@ -13,7 +14,8 @@ namespace LuckySortStack.Episodes
 {
 	// Owns one episode: reads the workspace from the scene, generates a task from
 	// the seed, lays out the object pool, plans the pick/place sequence, runs
-	// the task state machine on the robot, then has the StackEvaluator judge the result.
+	// the task state machine on the robot, then has the StackEvaluator judge the result
+	// and records the episode (Observer dataset + JSON episode record).
 	public class EpisodeManager : Entity
 	{
 		[Group("Task")] [Tooltip("Same seed + config = same task.")]
@@ -112,6 +114,18 @@ namespace LuckySortStack.Episodes
 		[Tooltip("Sim time the finished scene is watched for movement before the verdict.")]
 		public float EvalStableWindow = 1.0f;
 
+		[Group("Recording")]
+		[Tooltip("Drive Lucky's Observer: one Observer episode per task, labelled per pick, success = evaluator verdict.")]
+		public bool RecordWithObserver = true;
+
+		[Group("Recording")]
+		[Tooltip("Write the episode's task, plan, timeline and evaluation as JSON (what the Observer can't store).")]
+		public bool WriteEpisodeRecord = true;
+
+		[Group("Recording")]
+		[Tooltip("Relative to the project folder unless absolute. Each Play gets a timestamped session subfolder.")]
+		public string RecordingDirectory = "Recordings";
+
 		[Group("Debug")] [ClampValue(0, 16)]
 		[Tooltip("Drop this many steps from the end of the plan. The state machine then 'succeeds' at a shortened " +
 			"plan and the evaluator should report the missing objects: a demo that the evaluator doesn't trust the planner.")]
@@ -128,6 +142,8 @@ namespace LuckySortStack.Episodes
 		[HideFromEditor] private readonly Dictionary<string, Entity> m_Pool = new Dictionary<string, Entity>();
 		[HideFromEditor] private readonly Dictionary<Entity, Vector3> m_Intended = new Dictionary<Entity, Vector3>();
 		[HideFromEditor] private float m_CheckTimer = -1f;
+		[HideFromEditor] private EpisodeRecorder? m_Recorder;
+		[HideFromEditor] private ObserverSession? m_Observer;
 
 		protected override void OnCreate()
 		{
@@ -218,10 +234,13 @@ namespace LuckySortStack.Episodes
 				Log.Warn($"[Eval] State machine reported {StateMachine.State} but the evaluator says {(report.Success ? "PASS" : "FAIL")}. " +
 					"The evaluator is the source of truth.");
 			Log.Info("[Result] " + Result);
+			FinishRecording();
 		}
 
 		protected override void OnDestroy()
 		{
+			// Play stopped before the verdict: close the Observer episode as unsuccessful rather than leaving it open.
+			m_Observer?.EndEpisode(success: false, stopRecording: true);
 			if (s_Active == this) s_Active = null;
 		}
 
@@ -268,8 +287,77 @@ namespace LuckySortStack.Episodes
 			StateMachine = new TaskStateMachine(CurrentTask, plan, arm, new SceneWorldState(m_Pool), settings);
 			StateMachine.Log += message => Log.Info("[Task] " + message);
 			StateMachine.StateChanged += (from, to) => Log.Info($"[Task] {from} -> {to}");
+			StartRecording(plan);
 			StateMachine.Start();
 		}
+
+		// ── Recording ───────────────────────────────────────────────────────
+
+		private void StartRecording(List<PlannedStep> plan)
+		{
+			if (WriteEpisodeRecord)
+			{
+				string root = ResolveRecordingRoot();
+				string session = DateTime.Now.ToString("yyyyMMdd_HHmmss");   // folder name only; never used for timing
+				m_Recorder = new EpisodeRecorder(System.IO.Path.Combine(root, session), session);
+				m_Recorder.Begin(CurrentTask!, plan, StateMachine!);
+				Log.Info($"[Record] Episode records -> {m_Recorder.SessionDirectory}");
+			}
+
+			if (RecordWithObserver)
+			{
+				m_Observer = new ObserverSession();
+				m_Observer.BeginEpisode();
+				// Label frames per pick: entering MoveAboveObject is the start of each pick attempt.
+				StateMachine!.StateChanged += (_, to) =>
+				{
+					if (to == TaskState.MoveAboveObject && StateMachine.CurrentStep != null)
+						m_Observer.SetStep(StateMachine.CurrentStep);
+				};
+			}
+		}
+
+		private void FinishRecording()
+		{
+			// Observer episode success is the evaluator's verdict: the dataset must not inherit the robot's opinion.
+			m_Observer?.EndEpisode(Result!.Success, stopRecording: true);
+
+			if (m_Recorder == null) return;
+			try
+			{
+				string path = m_Recorder.Finish(Result!, new SceneWorldState(m_Pool));
+				Log.Info($"[Record] Wrote {path}");
+			}
+			catch (Exception e) when (e is System.IO.IOException || e is UnauthorizedAccessException)
+			{
+				Log.Error($"[Record] Could not write the episode record: {e.Message}");
+			}
+		}
+
+		// RecordingDirectory if absolute; otherwise relative to the project folder (the one holding the .hproj),
+		// found by walking up from the script assembly or the working directory.
+		//
+		// The engine exposes no project path; the script assembly is loaded from memory (empty Location)
+		// and the editor's working directory is C:\Windows\System32. The reliable anchor is this source
+		// file's compile-time path: the editor compiles the project's own scripts, so it's inside the project.
+		private string ResolveRecordingRoot()
+		{
+			if (System.IO.Path.IsPathRooted(RecordingDirectory)) return RecordingDirectory;
+
+			foreach (string start in new[] { SourceFilePath(), typeof(EpisodeManager).Assembly.Location })
+			{
+				if (string.IsNullOrEmpty(start)) continue;
+				for (var dir = new System.IO.DirectoryInfo(start); dir != null; dir = dir.Parent)
+					if (dir.Exists && dir.GetFiles("*.hproj").Length > 0)
+						return System.IO.Path.Combine(dir.FullName, RecordingDirectory);
+			}
+
+			string fallback = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "LuckySort", RecordingDirectory);
+			Log.Warn($"[Record] Project folder not found; writing to {fallback}. Set RecordingDirectory to an absolute path to choose.");
+			return fallback;
+		}
+
+		private static string SourceFilePath([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
 
 		// Build the generator's view of the workspace from actual scene geometry.
 		private WorkspaceSpec? ReadWorkspace()

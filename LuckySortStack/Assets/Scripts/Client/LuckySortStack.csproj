@@ -85,12 +85,15 @@
     <Compile Include="Source\Core\TaskDefinition.cs" />
     <Compile Include="Source\Core\WorkspaceSpec.cs" />
     <Compile Include="Source\Episodes\EpisodeManager.cs" />
+    <Compile Include="Source\Episodes\ObserverSession.cs" />
     <Compile Include="Source\Episodes\SceneWorldState.cs" />
     <Compile Include="Source\Evaluation\EpisodeResult.cs" />
     <Compile Include="Source\Evaluation\StackEvaluator.cs" />
     <Compile Include="Source\Generation\TaskGenerator.cs" />
     <Compile Include="Source\Panda.cs" />
     <Compile Include="Source\Planning\StackPlanner.cs" />
+    <Compile Include="Source\Recording\EpisodeRecord.cs" />
+    <Compile Include="Source\Recording\EpisodeRecorder.cs" />
     <Compile Include="Source\Robot\Abstractions\Interfaces.cs" />
     <Compile Include="Source\Robot\PandaManipulator.cs" />
     <Compile Include="Source\StateMachine\TaskStateMachine.cs" />

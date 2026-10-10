@@ -156,15 +156,18 @@ SceneSettings:
     EnableMaskJitter: true
     OutputDirectory: ""
     Cameras:
-      []
+      - EntityID: 13133421444478494799
+        CameraName: Camera_Record
+        VideoWidth: 256
+        VideoHeight: 256
     RegisteredTasks:
       []
   EditorCamera:
-    Position: [1.34804, 0.568574, 0.0135689]
-    FocalPoint: [0, 0, 0]
+    Position: [2.70889, 2.6015, -3.12975]
+    FocalPoint: [2, 2, -2]
     Distance: 1.4631
-    Pitch: 0.399121
-    Yaw: -1.56073
+    Pitch: 0.423673
+    Yaw: -2.58122
   RendererSettings:
     Shadows:
       CascadeNearPlaneOffset: 0
@@ -1655,6 +1658,18 @@ Entities:
           Name: EvalStableWindow
           Type: Float
           Value: 1
+        - ID: 321548644
+          Name: RecordWithObserver
+          Type: Bool
+          Value: true
+        - ID: 877834746
+          Name: WriteEpisodeRecord
+          Type: Bool
+          Value: true
+        - ID: 2752877923
+          Name: RecordingDirectory
+          Type: String
+          Value: Recordings
         - ID: 2272155308
           Name: DropPlanSteps
           Type: Int
@@ -1917,8 +1932,8 @@ Entities:
     Children:
       []
     TransformComponent:
-      Position: [2, 2, -2]
-      Rotation: [2.61799, 0.610865, 3.14159]
+      Position: [1.24094, 0.53253, -0.00856221]
+      Rotation: [0, 1.5708, 0.436332]
       Scale: [1, 1, 1]
     CameraComponent:
       Camera:

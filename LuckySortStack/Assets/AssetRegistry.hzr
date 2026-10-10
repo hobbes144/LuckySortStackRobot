@@ -5,6 +5,9 @@ Assets:
   - Handle: 223309200107494668
     FilePath: ContentVault/Robots/Panda/assets/link3_0.obj
     Type: MeshSource
+  - Handle: 332755221677807708
+    FilePath: Scripts/Client/Source/Recording/EpisodeRecord.cs
+    Type: ScriptFile
   - Handle: 569686487721441914
     FilePath: ContentVault/Robots/Panda/assets/link1.stl
     Type: MeshSource
@@ -95,6 +98,9 @@ Assets:
   - Handle: 5203546779527590802
     FilePath: ContentVault/Robots/Panda/assets/link6_9.obj
     Type: MeshSource
+  - Handle: 5323682835422828267
+    FilePath: Scripts/Client/Source/Episodes/ObserverSession.cs
+    Type: ScriptFile
   - Handle: 5347843755337071133
     FilePath: Scripts/Intermediates/Release/.NETCoreApp,Version=v9.0.AssemblyAttributes.cs
     Type: ScriptFile
@@ -140,6 +146,9 @@ Assets:
   - Handle: 8081499440683993017
     FilePath: Meshes/Default/Source/Cone.gltf
     Type: MeshSource
+  - Handle: 8236559743874135003
+    FilePath: Scripts/Client/Source/Recording/EpisodeRecorder.cs
+    Type: ScriptFile
   - Handle: 8386122548123399488
     FilePath: ContentVault/Robots/Panda/assets/link7_5.obj
     Type: MeshSource

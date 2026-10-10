@@ -212,7 +212,48 @@ support check.
 
 ---
 
-## 5. How each failure was worked
+## 5. Recording (Milestone 6)
+
+Each episode is recorded in two complementary parts:
+
+| Part | Holds | Written by |
+|---|---|---|
+| Lucky **Observer** dataset | robot joint state, actions, camera frames (engine-side Parquet + video) | the engine, with episode boundaries and labels driven by `ObserverSession` |
+| **Episode record** (`Recordings/<session>/episode_NNNN.json`) | seed, config, fingerprint, objects (start pose, target, final physical pose and tilt), plan, sim-time timeline, full evaluation, result | `EpisodeRecorder` |
+| **Session index** (`episodes.jsonl`) | one `EpisodeResult` line per episode | `EpisodeRecorder` |
+
+Design decisions:
+- **The Observer's success flag is the evaluator's verdict.** A dataset labelled by the robot's own opinion
+  would mark the `DropPlanSteps` episode as a success. The training data inherits the benchmark's ground truth,
+  not the controller's belief.
+- **Per-pick labels.** Each distinct pick (`Pick Large Red -> RED[0]`) is registered as an Observer task, and
+  `SetCurrentTaskIndex` switches it at the start of each pick attempt, so the dataset is segmented into
+  sub-tasks rather than one long blob.
+- **The sidecar exists because the Observer has no metadata API.** Without seed and config, a recorded
+  episode can't be reproduced. With them, any episode can be regenerated exactly (Stage 12).
+- **Sim time everywhere.** Timeline stamps come from the state machine's sim-time clock. Wall clock is used
+  only to name the session folder.
+- **Engine-independent and tested.** `EpisodeRecorder` and the record types live in `Recording/` and run against
+  `FakeSim`. `SameSeedRecordsTheSameEpisode` shows that two runs of one seed produce byte-identical records
+  (offline), so determinism is checked end to end, not just for task generation.
+- **A record is just data.** Reloading `episode_NNNN.json` gives the seed, config, outcome and per-check
+  breakdown that benchmark mode (Milestone 7) aggregates.
+
+**Evidence of determinism in the engine itself.** Seed −1399230583 was run twice in the editor, at 14:45 and at
+16:34. Both runs took exactly **185.7 s** of sim time with 16 picks and 16 places, and the same fingerprint
+`D8A130C84A4FE2C7`. With a fixed timestep and all randomness seeded, MuJoCo plus the state machine reproduced the
+whole episode, not just the task layout.
+
+**Engine obstacles hit on the way** (details in `LUCKY_API_NOTES.md` §10):
+- Observer recording is refused unless signed in to Lucky Hub. `ObserverSession` checks `Auth.IsAuthenticated()`
+  and says so, rather than failing silently.
+- Video capture needs FFmpeg (Tools → FFmpeg Settings).
+- Scripts can't see the project folder (working directory is `System32`, and the assembly is loaded from
+  memory). The project root is found from the compile-time `[CallerFilePath]`.
+
+---
+
+## 6. How each failure was worked
 
 1. **Read the log, not the video.** Each failure path emits one line with the numbers needed to explain it
    (distances, yaws, heights, attempt counts).
@@ -221,7 +262,7 @@ support check.
    that fails the same way the editor did.
 4. **Fix in the engine-independent state machine**, re-run the full suite, then confirm in the editor.
 
-## 6. Where to look in the code
+## 7. Where to look in the code
 
 | Concern | File |
 |---|---|
@@ -232,4 +273,6 @@ support check.
 | Engine-side arm | `Robot/PandaManipulator.cs` |
 | Independent physical evaluation | `Evaluation/StackEvaluator.cs` |
 | Episode orchestration | `Episodes/EpisodeManager.cs` |
+| Episode record + session index (engine-free) | `Recording/EpisodeRecorder.cs`, `Recording/EpisodeRecord.cs` |
+| Observer episode boundaries + per-pick labels | `Episodes/ObserverSession.cs` |
 | Offline arm + physics stand-in | `Tests/LuckySort.Core.Tests/FakeSim.cs` |

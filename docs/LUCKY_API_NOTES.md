@@ -118,6 +118,26 @@ Observer.RegisterTask(int index, string description);  Observer.SetCurrentTaskIn
 ```
 - Project setting `Physics.CaptureOnPlay: true` in `LuckySortStack.hproj`. VERIFY output location/format (Parquet + video per docs).
 - `RegisterTask` / `SetCurrentTaskIndex` are a natural fit for per-pick sub-tasks or per-difficulty indices.
+- **Rechecked for Milestone 6 (2026-10-09):** the DLL exposes nothing else (no metadata/info API, no output-path
+  property), and the local AgentDocs don't mention the Observer. The only engine usage is RobotSandbox:
+  `TaskManager.Start()` calls `StartRecording()`, and `Welcome.cs` calls `EndCurrentEpisodeBeginNext(true)` between
+  runs, with **no `BeginEpisode()`**. That suggests `StartRecording()` opens the first episode. The Python SDK README
+  says the engine writes per-substep `qpos`/`ctrl` rows to `data/chunk-XXX/file-YYY.parquet` with a `frame_flags`
+  column described in the recording's `info.json` (a LeRobot-style layout). No `.parquet` existed anywhere on this
+  machine before Milestone 6, so recording had never been triggered.
+  **VERIFY on the first recorded run:** (1) where the dataset lands, (2) whether one episode is recorded without
+  `BeginEpisode()`, (3) whether the per-pick `RegisterTask` labels appear in it.
+- Because the Observer has no metadata API, task metadata goes in our own sidecar JSON (`Recording/EpisodeRecorder`).
+- **Found on the first recorded run (2026-10-09):**
+  - **Observer recording requires a Lucky Hub sign-in.** When signed out, `StartRecording()` is refused with the
+    log line `HUB: Recording start refused: user is not authenticated.` Check `Hazel.Auth.IsAuthenticated()` first
+    (`Auth` also has `Login()`, `Logout()`, `GetUsername()`). `ObserverSession` checks it and skips with a warning.
+  - **Video capture needs FFmpeg:** `FFmpeg is required for video recording and was not found. You can install
+    FFmpeg via Tools->FFmpeg Settings, or to your system PATH`.
+  - **Scripts can't see the project folder directly.** The editor's working directory is `C:\WINDOWS\system32`
+    (not writable), the script assembly's `Assembly.Location` is empty (loaded from memory), and the DLL exposes no
+    project-path API (`Application.DataDirectoryPath` is the only path property). The working anchor is the
+    compile-time `[CallerFilePath]` of a script, which the build embeds unmapped. Walk up from it to the `.hproj`.
 
 ### 11. Camera observations
 - `CameraComponent`: projection settings, `Primary`, `ToScreenSpace`, `GetRayDirection`. **No C# pixel-readback API found.**

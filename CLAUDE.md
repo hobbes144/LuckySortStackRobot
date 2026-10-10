@@ -23,7 +23,11 @@ starting any stage.
 - [x] Milestone 5: failure reasons (`EvalFailure`, `EpisodeResult`, `[Result]` line), tilt check,
   `DropPlanSteps` debug demo. Verified in editor (seed -1399230583: PASS 16/16; with `DropPlanSteps = 2`,
   robot Success but evaluator FAIL `Eval.Incomplete` 14/16)
-- [ ] Milestones 6–8 (see plan §24)
+- [ ] Milestone 6: recording. Observer episodes (success = evaluator verdict, per-pick task labels) +
+  JSON episode record and `episodes.jsonl` index (`Recording/`). JSON record verified in editor (seed -1399230583,
+  16/16, written to `LuckySortStack/Recordings/`). Observer needs a Hub sign-in + FFmpeg; its dataset location is
+  still to be confirmed
+- [ ] Milestones 7–8 (see plan §24)
 
 Engineering decisions and the in-editor failures behind them (demo talking points): `docs/ENGINEERING_NOTES.md`.
 
@@ -54,12 +58,14 @@ Update this checklist as milestones complete.
 - `LuckySortStack/` — the Lucky Engine project (LuckyEngine 2026.1.2, Franka Panda)
   - `Assets/Scenes/Main.hscene` — start scene
   - `Assets/Scripts/Client/Source/` — C# scripts (namespace `LuckySortStack.*`)
-    - `Core/`, `Generation/`, `Planning/`, `StateMachine/`, `Evaluation/`, `Robot/Abstractions/` — **engine-independent**
+    - `Core/`, `Generation/`, `Planning/`, `StateMachine/`, `Evaluation/`, `Recording/`, `Robot/Abstractions/` — **engine-independent**
       (System.Numerics only, no `Hazel`), unit-tested
     - `Robot/PandaManipulator.cs` — `IManipulator` over the motion graph + `actuator8`
     - `Episodes/EpisodeManager.cs` — scene-side: reads workspace, generates task, lays out pool,
-      plans and runs the `TaskStateMachine`. Exactly one per scene (extra instances disable themselves)
+      plans and runs the `TaskStateMachine`, evaluates, records. Exactly one per scene (extra instances disable themselves)
     - `Episodes/SceneWorldState.cs` — `IWorldState` over the pool entities
+    - `Episodes/ObserverSession.cs` — drives Lucky's Observer (episode boundaries, per-pick labels)
+    - Episode records are written to `LuckySortStack/Recordings/<session>/` (gitignored)
     - `Panda.cs` — Stage 0/1 smoke test (off unless `RunSmokeTest`)
   - `Assets/ContentVault/Robots/Panda/` — MJCF + motion graph
 - `Tools/SceneBuilder/` — generates the workspace (mat, stack markers, object pool, materials)
