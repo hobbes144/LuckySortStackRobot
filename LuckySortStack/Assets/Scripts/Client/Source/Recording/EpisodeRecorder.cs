@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using LuckySortStack.Benchmark;
 using LuckySortStack.Core;
 using LuckySortStack.Evaluation;
 using LuckySortStack.Planning;
@@ -59,6 +60,25 @@ namespace LuckySortStack.Recording
 			File.WriteAllText(path, JsonSerializer.Serialize(record, k_Json));
 			File.AppendAllText(Path.Combine(SessionDirectory, "episodes.jsonl"),
 				JsonSerializer.Serialize(new { session = Session, episode = EpisodeIndex, summary = result.ToString(), record.Result }, k_JsonLine) + "\n");
+			return path;
+		}
+
+		// Benchmark aggregate for the session: benchmark_summary.json (data) + benchmark_summary.txt (readable).
+		public string WriteSummary(BenchmarkSummary summary, IReadOnlyList<int> seeds, bool partial)
+		{
+			Directory.CreateDirectory(SessionDirectory);
+			string path = Path.Combine(SessionDirectory, "benchmark_summary.json");
+			File.WriteAllText(path, JsonSerializer.Serialize(new
+			{
+				session   = Session,
+				partial,
+				baseSeed  = seeds.Count > 0 ? seeds[0] : 0,
+				planned   = seeds.Count,
+				summary,
+			}, k_Json));
+			File.WriteAllText(Path.Combine(SessionDirectory, "benchmark_summary.txt"),
+				$"Session {Session}{(partial ? " (PARTIAL)" : "")}, seeds {(seeds.Count > 0 ? seeds[0] : 0)}..{(seeds.Count > 0 ? seeds[^1] : 0)}\n" +
+				summary.Describe());
 			return path;
 		}
 

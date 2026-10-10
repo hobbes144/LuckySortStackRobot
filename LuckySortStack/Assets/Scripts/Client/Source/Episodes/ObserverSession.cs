@@ -6,17 +6,21 @@ using LuckySortStack.Planning;
 namespace LuckySortStack.Episodes
 {
 	// Thin wrapper over Lucky's Observer (Hazel.Data.Observer), which records robot state, actions
-	// and camera frames to its own dataset. This class only drives episode boundaries and labels:
-	// one Observer task per distinct pick ("Pick Large Red -> RED[0]"), so the recording is
-	// segmented per pick. Engine-dependent, so it lives in Episodes/ rather than Recording/
+	// and camera frames to its own LeRobot-style dataset (<project>/DataSessions/session_<time>/).
+	// This class only drives episode boundaries and labels: one Observer task per distinct pick
+	// ("Pick Large Red -> RED[0]"), so the recording is segmented per pick. Engine-dependent, so it
+	// lives in Episodes/ rather than Recording/.
 	//
-	// API confirmed from Hazel-ScriptCore.dll; usage pattern from RobotSandbox (StartRecording, then
-	// EndCurrentEpisode*(success)). Whether BeginEpisode() is needed after StartRecording() is
-	// unverified (see LUCKY_API_NOTES §10), so Begin() logs IsRecording to make it visible.
+	// Found on the first recorded run (LUCKY_API_NOTES §10):
+	//  - StartRecording() opens the first episode (the RobotSandbox sample never calls BeginEpisode()).
+	//  - Tasks registered after StartRecording() never reached tasks.parquet (only "Default Task"), so
+	//    every possible pick label is registered up front, before recording starts.
+	//  - The scene's ObserverConfig.MaxEpisodeDurationSeconds cuts long episodes; it must exceed a full run.
 	public sealed class ObserverSession
 	{
 		private readonly Dictionary<string, int> m_TaskIndex = new Dictionary<string, int>();
 		private bool m_EpisodeOpen;
+		private int m_Episodes;
 
 		// Observer recording goes through Lucky Hub and is refused when signed out
 		// ("HUB: Recording start refused: user is not authenticated"). Check first and say so plainly;
@@ -30,24 +34,34 @@ namespace LuckySortStack.Episodes
 				return false;
 			}
 
-			if (!Observer.IsRecording) Observer.StartRecording();
+			if (!Observer.IsRecording)
+			{
+				if (m_TaskIndex.Count == 0)
+					foreach (string label in StackPlanner.AllStepLabels())
+					{
+						m_TaskIndex[label] = m_TaskIndex.Count;
+						Observer.RegisterTask(m_TaskIndex[label], label);
+					}
+				Observer.StartRecording();   // opens the first episode
+			}
+			else
+			{
+				Observer.BeginEpisode();     // later episodes in the same recording
+			}
+
 			m_EpisodeOpen = true;
-			Log.Info($"[Record] Observer recording as {Auth.GetUsername()}: IsRecording={Observer.IsRecording}");
+			m_Episodes++;
+			Log.Info($"[Record] Observer episode {m_Episodes} started as {Auth.GetUsername()} ({m_TaskIndex.Count} pick labels): " +
+				$"IsRecording={Observer.IsRecording}");
 			return true;
 		}
 
-		// Label the frames that follow with this pick. Task indices are shared across episodes by description.
+		// Label the frames that follow with this pick.
 		public void SetStep(PlannedStep step)
 		{
 			if (!m_EpisodeOpen) return;
-			string description = step.ToString();
-			if (!m_TaskIndex.TryGetValue(description, out int index))
-			{
-				index = m_TaskIndex.Count;
-				m_TaskIndex[description] = index;
-				Observer.RegisterTask(index, description);
-			}
-			Observer.SetCurrentTaskIndex(index);
+			if (m_TaskIndex.TryGetValue(step.ToString(), out int index)) Observer.SetCurrentTaskIndex(index);
+			else Log.Warn($"[Record] No Observer label registered for '{step}'");
 		}
 
 		// success = the evaluator's verdict, not the state machine's.
@@ -57,7 +71,7 @@ namespace LuckySortStack.Episodes
 			Observer.EndCurrentEpisode(success);
 			m_EpisodeOpen = false;
 			if (stopRecording && Observer.IsRecording) Observer.StopRecording();
-			Log.Info($"[Record] Observer episode ended (success={success}){(stopRecording ? ", recording stopped" : "")}");
+			Log.Info($"[Record] Observer episode {m_Episodes} ended (success={success}){(stopRecording ? ", recording stopped" : "")}");
 		}
 	}
 }

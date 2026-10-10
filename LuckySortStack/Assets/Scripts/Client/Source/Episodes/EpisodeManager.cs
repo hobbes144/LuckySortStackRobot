@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Hazel;
+using LuckySortStack.Benchmark;
 using LuckySortStack.Core;
 using LuckySortStack.Evaluation;
 using LuckySortStack.Generation;
@@ -126,6 +127,16 @@ namespace LuckySortStack.Episodes
 		[Tooltip("Relative to the project folder unless absolute. Each Play gets a timestamped session subfolder.")]
 		public string RecordingDirectory = "Recordings";
 
+		[Group("Benchmark")] [ClampValue(1, 1000)]
+		[Tooltip("Episodes to run in this Play session, on seeds Seed, Seed+1, … (must be >= 0 when more than 1). " +
+			"Between episodes the scene is reset in place. 1 = a single episode, as before.")]
+		public int BenchmarkEpisodes = 1;
+
+		[Group("Debug")]
+		[Tooltip("Reset spike: lay out a few consecutive seeds via the in-Play reset and check each placement, " +
+			"without running the robot. Verifies SceneResetter in seconds before a long benchmark.")]
+		public bool ResetSpike = false;
+
 		[Group("Debug")] [ClampValue(0, 16)]
 		[Tooltip("Drop this many steps from the end of the plan. The state machine then 'succeeds' at a shortened " +
 			"plan and the evaluator should report the missing objects: a demo that the evaluator doesn't trust the planner.")]
@@ -140,10 +151,22 @@ namespace LuckySortStack.Episodes
 		[HideFromEditor] private static EpisodeManager? s_Active;
 
 		[HideFromEditor] private readonly Dictionary<string, Entity> m_Pool = new Dictionary<string, Entity>();
-		[HideFromEditor] private readonly Dictionary<Entity, Vector3> m_Intended = new Dictionary<Entity, Vector3>();
+		[HideFromEditor] private readonly Dictionary<Entity, (Vector3 Position, float Yaw)> m_Intended = new Dictionary<Entity, (Vector3, float)>();
 		[HideFromEditor] private float m_CheckTimer = -1f;
 		[HideFromEditor] private EpisodeRecorder? m_Recorder;
 		[HideFromEditor] private ObserverSession? m_Observer;
+
+		// Episode sequence (benchmark mode; a single episode is a sequence of one).
+		[HideFromEditor] private WorkspaceSpec? m_Workspace;
+		[HideFromEditor] private List<int> m_Seeds = new List<int>();
+		[HideFromEditor] private int m_EpisodeIndex = -1;
+		[HideFromEditor] private readonly List<EpisodeResult> m_Results = new List<EpisodeResult>();
+		[HideFromEditor] private SceneResetter? m_Resetter;
+		[HideFromEditor] private bool m_SequenceDone;
+		[HideFromEditor] private bool m_PendingStart;
+		[HideFromEditor] private bool m_Started;
+
+		private bool MultiEpisode => m_Seeds.Count > 1;
 
 		protected override void OnCreate()
 		{
@@ -157,52 +180,51 @@ namespace LuckySortStack.Episodes
 			}
 			s_Active = this;
 
-			WorkspaceSpec? workspace = ReadWorkspace();
-			if (workspace == null) return;
+			m_Workspace = ReadWorkspace();
+			if (m_Workspace == null) return;
 
-			TaskConfig config = new TaskConfig
+			int baseSeed = RandomizeSeedOnPlay ? Environment.TickCount & 0x7FFFFFFF : Seed;
+			int count = ResetSpike ? Math.Max(3, BenchmarkEpisodes) : BenchmarkEpisodes;
+			if (count == 1)
 			{
-				Seed               = RandomizeSeedOnPlay ? Environment.TickCount & 0x7FFFFFFF : Seed,
-				NumColors          = NumColors,
-				MinObjectsPerColor = MinObjectsPerColor,
-				MaxObjectsPerColor = MaxObjectsPerColor,
-				NumSizeTiers       = NumSizeTiers,
-				RandomizePositions = RandomizePositions,
-				RandomizeRotations = RandomizeRotations,
-			};
-
-			try
-			{
-				CurrentTask = TaskGenerator.Generate(config, workspace);
+				m_Seeds = new List<int> { baseSeed };
 			}
-			catch (ArgumentException e)
+			else
 			{
-				Log.Error($"[Episode] Invalid task config: {e.Message}");
+				if (baseSeed < 0)
+				{
+					Log.Warn($"[Benchmark] Seed {baseSeed} is negative; System.Random(seed) uses |seed|, so negative seeds alias " +
+						$"positive ones. Using {baseSeed & 0x7FFFFFFF} as the base.");
+					baseSeed &= 0x7FFFFFFF;
+				}
+				count = (int)Math.Min(count, (long)int.MaxValue - baseSeed + 1);
+				m_Seeds = BenchmarkSeeds.Make(baseSeed, count);
+				Log.Info($"[Benchmark] {(ResetSpike ? "Reset spike" : "Benchmark")}: {count} episodes, seeds {m_Seeds[0]}..{m_Seeds[^1]}");
+			}
+
+			if (!ApplyLayoutToScene)
+			{
+				if (RunTask) Log.Warn("[Episode] RunTask needs ApplyLayoutToScene; the pool isn't where the task says it is.");
+				if (GenerateTask(m_Seeds[0]) != null) LogTask(CurrentTask!);
 				return;
 			}
-
-			LogTask(CurrentTask);
-
-			if (ApplyLayoutToScene)
-			{
-				ApplyLayout(CurrentTask);
-				m_CheckTimer = PlacementCheckDelay;
-			}
-			else if (RunTask)
-			{
-				Log.Warn("[Episode] RunTask needs ApplyLayoutToScene; the pool isn't where the task says it is.");
-			}
+			m_PendingStart = true;   // layout happens on the first update, once MuJoCo state can be read
 		}
 
 		protected override void OnUpdate(float ts)
 		{
-			if (s_Active != this) return;
+			if (s_Active != this || m_SequenceDone) return;
+
+			if (m_PendingStart && !m_Started)
+			{
+				StartSequence();
+				return;
+			}
 
 			if (m_CheckTimer >= 0f)
 			{
 				m_CheckTimer -= ts;
-				if (m_CheckTimer < 0f && CheckPlacement() && RunTask)
-					StartTask();
+				if (m_CheckTimer < 0f) OnLayoutSettled();
 				return;
 			}
 
@@ -235,13 +257,154 @@ namespace LuckySortStack.Episodes
 					"The evaluator is the source of truth.");
 			Log.Info("[Result] " + Result);
 			FinishRecording();
+			m_Results.Add(Result);
+			NextEpisode();
 		}
 
 		protected override void OnDestroy()
 		{
 			// Play stopped before the verdict: close the Observer episode as unsuccessful rather than leaving it open.
 			m_Observer?.EndEpisode(success: false, stopRecording: true);
+			// A benchmark cut short still reports what it got through.
+			if (MultiEpisode && !m_SequenceDone && m_Results.Count > 0) FinishSequence(partial: true);
 			if (s_Active == this) s_Active = null;
+		}
+
+		// ── Episode sequence ────────────────────────────────────────────────
+
+		private TaskDefinition? GenerateTask(int seed)
+		{
+			var config = new TaskConfig
+			{
+				Seed               = seed,
+				NumColors          = NumColors,
+				MinObjectsPerColor = MinObjectsPerColor,
+				MaxObjectsPerColor = MaxObjectsPerColor,
+				NumSizeTiers       = NumSizeTiers,
+				RandomizePositions = RandomizePositions,
+				RandomizeRotations = RandomizeRotations,
+			};
+			try
+			{
+				CurrentTask = TaskGenerator.Generate(config, m_Workspace!);
+				return CurrentTask;
+			}
+			catch (ArgumentException e)
+			{
+				Log.Error($"[Episode] Invalid task config: {e.Message}");
+				CurrentTask = null;
+				return null;
+			}
+		}
+
+		// Generate episode i's task and put the pool in its layout with one atomic qpos write (SceneResetter),
+		// for the first episode as well as every later one.
+		private void BeginEpisode(int index)
+		{
+			m_EpisodeIndex = index;
+			StateMachine = null;
+			Evaluator = null;
+			Result = null;
+
+			TaskDefinition? task = GenerateTask(m_Seeds[index]);
+			if (task == null) { FinishSequence(partial: true); return; }
+			if (MultiEpisode) Log.Info($"[Benchmark] ── Episode {index + 1}/{m_Seeds.Count}, seed {task.Seed} ──");
+			LogTask(task);
+
+			Dictionary<string, (Vector3 Position, float Yaw)> layout = ComputeLayout(task);
+			m_Intended.Clear();
+			foreach (var kv in layout) m_Intended[m_Pool[kv.Key]] = kv.Value;
+
+			if (m_Resetter != null)
+			{
+				m_Resetter.Reset(layout);
+			}
+			else
+			{
+				// Fallback only. Transform writes don't move the MuJoCo bodies all at once: a cube can arrive
+				// while another still sits in its pre-Play spot, or pass through one, and get flung
+				// (seed 748253065: LS_Obj_Red_Small ended up 430 mm away).
+				foreach (var kv in layout)
+				{
+					m_Pool[kv.Key].Transform.WorldTranslation = kv.Value.Position;
+					m_Pool[kv.Key].Transform.WorldRotation = new Vector3(0f, kv.Value.Yaw, 0f);
+				}
+			}
+			m_CheckTimer = PlacementCheckDelay;
+		}
+
+		// First frame of Play: the pool is at its saved scene positions, which never overlap, so this is
+		// the moment to calibrate the resetter. Every layout, including the first, then goes through it.
+		private void StartSequence()
+		{
+			m_Started = true;
+			MujocoSceneComponent? mujoco = FindEntityByTag(RobotTag)?.GetComponent<MujocoSceneComponent>();
+			var resetter = mujoco != null ? new SceneResetter(mujoco) : null;
+			if (resetter != null && resetter.Calibrate(m_Pool))
+			{
+				m_Resetter = resetter;
+			}
+			else
+			{
+				Log.Warn("[Reset] SceneResetter unavailable; laying out by transform writes (can fling overlapping cubes) " +
+					"and running a single episode.");
+				m_Seeds = new List<int> { m_Seeds[0] };
+			}
+			BeginEpisode(0);
+		}
+
+		// The layout has had PlacementCheckDelay of sim time to settle.
+		private void OnLayoutSettled()
+		{
+			bool placed = CheckPlacement();
+
+			if (!placed)
+			{
+				Log.Error($"[Reset] Layout for episode {m_EpisodeIndex + 1} (seed {m_Seeds[m_EpisodeIndex]}) didn't land; stopping. " +
+					"See the per-object errors above.");
+				FinishSequence(partial: true);
+				return;
+			}
+
+			if (ResetSpike)
+			{
+				Log.Info($"[Reset] Spike {m_EpisodeIndex + 1}/{m_Seeds.Count}: layout for seed {m_Seeds[m_EpisodeIndex]} " +
+					$"placed by {(m_Resetter != null ? "qpos reset" : "transform write")} — OK");
+				if (m_EpisodeIndex + 1 < m_Seeds.Count) BeginEpisode(m_EpisodeIndex + 1);
+				else { Log.Info("[Reset] Spike passed: every layout placed all objects within tolerance."); m_SequenceDone = true; }
+				return;
+			}
+
+			if (RunTask) StartTask();
+		}
+
+		private void NextEpisode()
+		{
+			if (m_EpisodeIndex + 1 < m_Seeds.Count) BeginEpisode(m_EpisodeIndex + 1);
+			else FinishSequence(partial: false);
+		}
+
+		private void FinishSequence(bool partial)
+		{
+			m_SequenceDone = true;
+			if (!MultiEpisode || m_Results.Count == 0) return;
+
+			BenchmarkSummary summary = BenchmarkSummary.From(m_Results);
+			Log.Info($"[Benchmark] {(partial ? "PARTIAL " : "")}Summary over {m_Results.Count}/{m_Seeds.Count} episodes " +
+				$"(seeds {m_Seeds[0]}..{m_Seeds[^1]}):");
+			foreach (string line in summary.Describe().Split('\n'))
+				if (line.Length > 0) Log.Info("[Benchmark] " + line);
+
+			if (m_Recorder == null) return;
+			try
+			{
+				string path = m_Recorder.WriteSummary(summary, m_Seeds, partial);
+				Log.Info($"[Record] Wrote {path}");
+			}
+			catch (Exception e) when (e is System.IO.IOException || e is UnauthorizedAccessException)
+			{
+				Log.Error($"[Record] Could not write the benchmark summary: {e.Message}");
+			}
 		}
 
 		private void StartTask()
@@ -297,30 +460,37 @@ namespace LuckySortStack.Episodes
 		{
 			if (WriteEpisodeRecord)
 			{
-				string root = ResolveRecordingRoot();
-				string session = DateTime.Now.ToString("yyyyMMdd_HHmmss");   // folder name only; never used for timing
-				m_Recorder = new EpisodeRecorder(System.IO.Path.Combine(root, session), session);
+				if (m_Recorder == null)
+				{
+					string root = ResolveRecordingRoot();
+					string session = DateTime.Now.ToString("yyyyMMdd_HHmmss");   // folder name only; never used for timing
+					m_Recorder = new EpisodeRecorder(System.IO.Path.Combine(root, session), session);
+					Log.Info($"[Record] Episode records -> {m_Recorder.SessionDirectory}");
+				}
 				m_Recorder.Begin(CurrentTask!, plan, StateMachine!);
-				Log.Info($"[Record] Episode records -> {m_Recorder.SessionDirectory}");
 			}
 
 			if (RecordWithObserver)
 			{
-				m_Observer = new ObserverSession();
-				m_Observer.BeginEpisode();
-				// Label frames per pick: entering MoveAboveObject is the start of each pick attempt.
-				StateMachine!.StateChanged += (_, to) =>
+				m_Observer ??= new ObserverSession();
+				if (m_Observer.BeginEpisode())
 				{
-					if (to == TaskState.MoveAboveObject && StateMachine.CurrentStep != null)
-						m_Observer.SetStep(StateMachine.CurrentStep);
-				};
+					// Label frames per pick: entering MoveAboveObject is the start of each pick attempt.
+					TaskStateMachine machine = StateMachine!;
+					machine.StateChanged += (_, to) =>
+					{
+						if (to == TaskState.MoveAboveObject && machine.CurrentStep != null)
+							m_Observer.SetStep(machine.CurrentStep);
+					};
+				}
 			}
 		}
 
 		private void FinishRecording()
 		{
 			// Observer episode success is the evaluator's verdict: the dataset must not inherit the robot's opinion.
-			m_Observer?.EndEpisode(Result!.Success, stopRecording: true);
+			bool last = m_EpisodeIndex + 1 >= m_Seeds.Count;
+			m_Observer?.EndEpisode(Result!.Success, stopRecording: last);
 
 			if (m_Recorder == null) return;
 			try
@@ -401,51 +571,52 @@ namespace LuckySortStack.Episodes
 			return ws;
 		}
 
-		private void ApplyLayout(TaskDefinition task)
+		// Pose of every pool object for a task: task objects at their generated start pose, the rest
+		// parked in a row behind the robot, resting on the ground (y = 0).
+		private Dictionary<string, (Vector3 Position, float Yaw)> ComputeLayout(TaskDefinition task)
 		{
-			var used = new HashSet<string>();
+			var layout = new Dictionary<string, (Vector3, float)>();
 			foreach (SortObjectDefinition def in task.Objects)
-			{
-				Entity obj = m_Pool[def.PoolTag];
-				Place(obj, ToHazel(def.InitialPosition), def.InitialYaw);
-				used.Add(def.PoolTag);
-			}
+				layout[def.PoolTag] = (ToHazel(def.InitialPosition), def.InitialYaw);
 
-			// Park everything else in a row behind the robot, resting on the ground (y = 0).
 			int slot = 0;
 			foreach (var kv in m_Pool)
 			{
-				if (used.Contains(kv.Key)) continue;
+				if (layout.ContainsKey(kv.Key)) continue;
 				float edge = kv.Value.Transform.Scale.Y;
-				Place(kv.Value, new Vector3(ParkingX, edge * 0.5f + 0.002f, -0.50f + slot * 0.07f), 0f);
+				layout[kv.Key] = (new Vector3(ParkingX, edge * 0.5f + 0.002f, -0.50f + slot * 0.07f), 0f);
 				slot++;
 			}
+			return layout;
 		}
 
-		private void Place(Entity obj, Vector3 position, float yaw)
-		{
-			obj.Transform.WorldTranslation = position;
-			obj.Transform.WorldRotation = new Vector3(0f, yaw, 0f);
-			m_Intended[obj] = position;
-		}
-
-		// Placement by transform write before physics starts is an unverified engine
-		// behaviour for MuJoCo bodies (see LUCKY_API_NOTES §8). This makes it obvious.
+		// The pool must be where the layout says (position and yaw modulo 90°) before the robot starts.
+		// Guards both placement paths: transform writes at the start of Play and the in-Play reset.
 		private bool CheckPlacement()
 		{
+			const float yawTolerance = 3f * Mathf.PI / 180f;
+			var world = new SceneWorldState(m_Pool);
 			int ok = 0;
+			float worst = 0f;
 			foreach (var kv in m_Intended)
 			{
 				Vector3 actual = kv.Key.Transform.WorldTranslation;
-				float dx = actual.X - kv.Value.X, dz = actual.Z - kv.Value.Z;
+				float dx = actual.X - kv.Value.Position.X, dz = actual.Z - kv.Value.Position.Z;
 				float horizontal = Mathf.Sqrt(dx * dx + dz * dz);
-				if (horizontal <= PlacementTolerance) { ok++; continue; }
-				Log.Warn($"[Episode] {kv.Key.Tag}: intended ({kv.Value.X:F3}, {kv.Value.Z:F3}) actual ({actual.X:F3}, {actual.Z:F3}) off by {horizontal * 1000f:F1} mm");
+				float yawErr = Math.Abs(TaskStateMachine.WrapQuarter(world.GetObjectYaw(kv.Key.Tag) - kv.Value.Yaw));
+				worst = Math.Max(worst, horizontal);
+				if (horizontal <= PlacementTolerance && yawErr <= yawTolerance) { ok++; continue; }
+				string before = m_EpisodeIndex > 0 && m_Resetter != null && m_Resetter.LastPreResetPositions.TryGetValue(kv.Key.Tag, out Vector3 b)
+					? $", before the reset it was at ({b.X:F3}, {b.Y:F3}, {b.Z:F3})" : "";
+				Log.Warn($"[Episode] {kv.Key.Tag}: intended ({kv.Value.Position.X:F3}, {kv.Value.Position.Y:F3}, {kv.Value.Position.Z:F3}) " +
+					$"actual ({actual.X:F3}, {actual.Y:F3}, {actual.Z:F3}) off by {horizontal * 1000f:F1} mm, " +
+					$"yaw off by {yawErr * 180f / Mathf.PI:F1}°{before}");
 			}
 
 			if (ok == m_Intended.Count)
 			{
-				Log.Info($"[Episode] Placement check passed: {ok}/{m_Intended.Count} objects within {PlacementTolerance * 1000f:F0} mm.");
+				Log.Info($"[Episode] Placement check passed: {ok}/{m_Intended.Count} objects within {PlacementTolerance * 1000f:F0} mm " +
+					$"(worst {worst * 1000f:F1} mm) and 3° of yaw.");
 				return true;
 			}
 			Log.Warn($"[Episode] Placement check FAILED: {ok}/{m_Intended.Count} objects within tolerance. Task not started.");

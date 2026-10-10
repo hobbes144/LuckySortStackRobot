@@ -79,6 +79,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Source\Benchmark\BenchmarkSummary.cs" />
     <Compile Include="Source\Core\EpisodeMetrics.cs" />
     <Compile Include="Source\Core\ObjectTypes.cs" />
     <Compile Include="Source\Core\TaskConfig.cs" />
@@ -86,6 +87,7 @@
     <Compile Include="Source\Core\WorkspaceSpec.cs" />
     <Compile Include="Source\Episodes\EpisodeManager.cs" />
     <Compile Include="Source\Episodes\ObserverSession.cs" />
+    <Compile Include="Source\Episodes\SceneResetter.cs" />
     <Compile Include="Source\Episodes\SceneWorldState.cs" />
     <Compile Include="Source\Evaluation\EpisodeResult.cs" />
     <Compile Include="Source\Evaluation\StackEvaluator.cs" />

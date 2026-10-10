@@ -10,6 +10,7 @@
     <Compile Include="..\..\LuckySortStack\Assets\Scripts\Client\Source\Generation\**\*.cs" Link="Source\Generation\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\LuckySortStack\Assets\Scripts\Client\Source\Planning\**\*.cs" Link="Source\Planning\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\LuckySortStack\Assets\Scripts\Client\Source\StateMachine\**\*.cs" Link="Source\StateMachine\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\LuckySortStack\Assets\Scripts\Client\Source\Benchmark\**\*.cs" Link="Source\Benchmark\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\LuckySortStack\Assets\Scripts\Client\Source\Evaluation\**\*.cs" Link="Source\Evaluation\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\LuckySortStack\Assets\Scripts\Client\Source\Recording\**\*.cs" Link="Source\Recording\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\LuckySortStack\Assets\Scripts\Client\Source\Robot\Abstractions\**\*.cs" Link="Source\Robot\Abstractions\%(RecursiveDir)%(Filename)%(Extension)" />

@@ -23,11 +23,30 @@ starting any stage.
 - [x] Milestone 5: failure reasons (`EvalFailure`, `EpisodeResult`, `[Result]` line), tilt check,
   `DropPlanSteps` debug demo. Verified in editor (seed -1399230583: PASS 16/16; with `DropPlanSteps = 2`,
   robot Success but evaluator FAIL `Eval.Incomplete` 14/16)
-- [ ] Milestone 6: recording. Observer episodes (success = evaluator verdict, per-pick task labels) +
-  JSON episode record and `episodes.jsonl` index (`Recording/`). JSON record verified in editor (seed -1399230583,
-  16/16, written to `LuckySortStack/Recordings/`). Observer needs a Hub sign-in + FFmpeg; its dataset location is
-  still to be confirmed
-- [ ] Milestones 7–8 (see plan §24)
+- [x] Milestone 6: recording. Observer LeRobot dataset in `LuckySortStack/DataSessions/` (success = evaluator
+  verdict) + JSON episode record and `episodes.jsonl` in `LuckySortStack/Recordings/`. Verified in editor
+  (seed -1399230583, 16/16). Needs a Hub sign-in + FFmpeg. Open: the scene's ObserverConfig cuts episodes at
+  90 s at 256×256, and per-pick labels must be registered before StartRecording (fixed; re-verify)
+- [ ] Milestone 7: benchmark mode (`BenchmarkEpisodes`, `SceneResetter` in-Play reset, `Benchmark/` summary).
+  Code done and unit-tested offline (722 tests, incl. a 40-seed FakeSim benchmark). **BLOCKED in editor by an open
+  bug, root cause found:** in the working-copy `Main.hscene`, `LS_Obj_Red_Small` was re-parented under
+  `LS_Obj_Yellow_Large` (probably an accidental hierarchy drag). It then compiles into Yellow_Large's MuJoCo
+  body, so there are 15 free bodies for 16 cubes, `SceneResetter` calibration fails, and the cube rides along
+  with Yellow_Large (it "lands" at (0.918, 0.021, −0.049)). Write-up: `docs/LUCKY_API_NOTES.md` → "Open issues"
+- [ ] Milestone 8 (see plan §24)
+
+### Next session: start here
+1. **Fix the scene (editor closed).** Run `git diff LuckySortStack/Assets/Scenes/Main.hscene`. If it shows only the
+   Red_Small re-parent plus the `BenchmarkEpisodes`/`ResetSpike` field values, run
+   `git checkout -- LuckySortStack/Assets/Scenes/Main.hscene`. Otherwise drag Red_Small back to the root in the
+   editor (Position (0.51, 0.032, −0.08), Scale 0.04).
+2. **Harden:** at startup, check that every pool cube is a root entity and a MuJoCo free body (count == pool
+   size), and name the offending cube before laying anything out.
+3. ResetSpike must pass (`Calibrated 16 cubes`, 3 × `placed by qpos reset — OK`), then run
+   `BenchmarkEpisodes = 10` with `Seed` ≥ 0.
+4. In the editor's ObserverConfig, set `MaxEpisodeDurationSeconds` ≥ 600 (it cuts episodes at 90 s) and
+   enlarge `Camera_Record` (256×256). Check that `meta/tasks.parquet` now holds the 40 pick labels.
+5. `EpisodeManager.Seed` is still −1399230583 (folded to 748253065 for benchmarks); set a non-negative seed.
 
 Engineering decisions and the in-editor failures behind them (demo talking points): `docs/ENGINEERING_NOTES.md`.
 
@@ -58,14 +77,17 @@ Update this checklist as milestones complete.
 - `LuckySortStack/` — the Lucky Engine project (LuckyEngine 2026.1.2, Franka Panda)
   - `Assets/Scenes/Main.hscene` — start scene
   - `Assets/Scripts/Client/Source/` — C# scripts (namespace `LuckySortStack.*`)
-    - `Core/`, `Generation/`, `Planning/`, `StateMachine/`, `Evaluation/`, `Recording/`, `Robot/Abstractions/` — **engine-independent**
+    - `Core/`, `Benchmark/`, `Generation/`, `Planning/`, `StateMachine/`, `Evaluation/`, `Recording/`, `Robot/Abstractions/` — **engine-independent**
       (System.Numerics only, no `Hazel`), unit-tested
     - `Robot/PandaManipulator.cs` — `IManipulator` over the motion graph + `actuator8`
     - `Episodes/EpisodeManager.cs` — scene-side: reads workspace, generates task, lays out pool,
-      plans and runs the `TaskStateMachine`, evaluates, records. Exactly one per scene (extra instances disable themselves)
+      plans and runs the `TaskStateMachine`, evaluates, records; loops episodes in benchmark mode. Exactly one per
+      scene (extra instances disable themselves)
     - `Episodes/SceneWorldState.cs` — `IWorldState` over the pool entities
     - `Episodes/ObserverSession.cs` — drives Lucky's Observer (episode boundaries, per-pick labels)
+    - `Episodes/SceneResetter.cs` — in-Play reset between benchmark episodes (MuJoCo reset + measured qpos writes)
     - Episode records are written to `LuckySortStack/Recordings/<session>/` (gitignored)
+    - The Observer's own dataset goes to `LuckySortStack/DataSessions/session_<time>/` (gitignored)
     - `Panda.cs` — Stage 0/1 smoke test (off unless `RunSmokeTest`)
   - `Assets/ContentVault/Robots/Panda/` — MJCF + motion graph
 - `Tools/SceneBuilder/` — generates the workspace (mat, stack markers, object pool, materials)

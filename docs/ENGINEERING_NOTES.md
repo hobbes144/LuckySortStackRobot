@@ -250,10 +250,69 @@ whole episode, not just the task layout.
 - Video capture needs FFmpeg (Tools → FFmpeg Settings).
 - Scripts can't see the project folder (working directory is `System32`, and the assembly is loaded from
   memory). The project root is found from the compile-time `[CallerFilePath]`.
+- The Observer writes a **LeRobot v3** dataset to `DataSessions/session_<time>/`: per-frame joint state and
+  actions at 50 Hz, a `task_index` per frame, per-episode `success`, and camera video. Its per-scene
+  `ObserverConfig` cut the first recording at **90 s** (`MaxEpisodeDurationSeconds`) at 256×256. Per-pick labels
+  only take effect if registered **before** `StartRecording()`, so all 40 possible labels are registered up front.
 
 ---
 
-## 6. How each failure was worked
+## 6. Benchmark mode (Milestone 7)
+
+One Play session runs N episodes on seeds `Seed, Seed+1, …` and ends with a summary.
+
+```text
+first frame: calibrate resetter on the saved scene positions
+episode k:   ResetToInitialState + qpos writes ─► settle ─► placement check ─► run ─► evaluate ─► record
+end:        BenchmarkSummary ─► log + benchmark_summary.json/.txt
+```
+
+**Resetting in place (`SceneResetter`).** Restarting Play per episode would be slow and would lose script state,
+so the scene is reset between episodes. That isn't teleporting during operation (rule 7): it happens at the
+episode boundary, like a real lab resetting a cell. Nothing about how MuJoCo bodies map to scene entities, or
+how Hazel's frame maps to MuJoCo's, is documented, so the resetter **measures instead of assuming**:
+- Bodies are matched to cubes by position.
+- The frame rotation is either `GetAxisHzToMj()` or its inverse, whichever fits every cube with one translation.
+- The fit spread and the qpos-vs-body agreement are logged. If they're off by more than 2 mm, it refuses to reset
+  rather than silently mis-placing cubes.
+- Every reset then goes through the same **placement check** as the first layout (position within 5 mm, yaw
+  within 3°). A bad reset stops the benchmark instead of producing results from a wrong layout.
+- `Debug → ResetSpike` cycles three layouts without running the robot, so the reset can be verified in seconds
+  before committing to a long benchmark.
+- Every layout, including the first, uses the same qpos write. Transform writes are only a logged fallback.
+
+**Status: blocked by a scene bug (root cause found).** The first spike runs found 15 MuJoCo free bodies for
+16 cubes, so calibration refused to run, as designed. MuJoCo names bodies `lucky_body_<entity ID>`, and mapping
+them back to the scene showed that `LS_Obj_Red_Small` had been **re-parented under `LS_Obj_Yellow_Large`** in
+the editor. A child entity compiles into its parent's MuJoCo body, so the cube rode along with Yellow_Large
+and "landed" at the same wrong spot every run. Details: `LUCKY_API_NOTES.md` → "Open issues".
+
+It's a good debugging story for the demo:
+- The self-checks (placement check, free-body matching) caught a scene/physics mismatch on the first run,
+  instead of producing a benchmark full of mysterious "flung cube" failures.
+- Two plausible theories (overlapping transform writes, then a stale model cache) were dropped as soon as the
+  evidence contradicted them.
+- The deciding clue was an exact, repeatable final pose plus a body count, not the visual symptom.
+
+**The summary (`BenchmarkSummary`, engine-free).**
+- **Success rate with a 95% Wilson interval.** At n = 10, "9/10" is a 60–98% claim, not "90%". The Wilson interval
+  stays sensible at 0% and 100%, where the normal approximation collapses to ±0.
+- **Failure categories**, most frequent first: the robot's own reason when it gave up, `Eval.*` when it thought
+  it succeeded. **Robot/evaluator disagreements** are counted separately, since those are the silent failures.
+- **Duration** (mean ± sample std-dev, min/median/max), for all episodes and for successful ones only.
+- **Picks per object** over successful episodes (1.00 = never retried), and the **fraction of objects correctly
+  stacked** across all episodes as partial credit.
+- **Failed seeds**: every failure can be replayed exactly by setting `Seed`.
+- Seeds must be ≥ 0. `System.Random(seed)` uses |seed|, so −n and n would silently be the same task.
+
+**Tested offline.** `OfflineBenchmarkSummaryMatchesInjectedFaults` runs 40 seeds through `FakeSim` with a
+deterministic fault per seed (always-slipping grasp → `GraspFailed`, dropped plan step → `Eval.Incomplete`) and
+checks every count, the rate, the disagreements and the failed-seed list against the known answer.
+`OfflineBenchmarkIsReproducible` checks that two runs give identical summaries.
+
+---
+
+## 7. How each failure was worked
 
 1. **Read the log, not the video.** Each failure path emits one line with the numbers needed to explain it
    (distances, yaws, heights, attempt counts).
@@ -262,7 +321,7 @@ whole episode, not just the task layout.
    that fails the same way the editor did.
 4. **Fix in the engine-independent state machine**, re-run the full suite, then confirm in the editor.
 
-## 7. Where to look in the code
+## 8. Where to look in the code
 
 | Concern | File |
 |---|---|
@@ -275,4 +334,6 @@ whole episode, not just the task layout.
 | Episode orchestration | `Episodes/EpisodeManager.cs` |
 | Episode record + session index (engine-free) | `Recording/EpisodeRecorder.cs`, `Recording/EpisodeRecord.cs` |
 | Observer episode boundaries + per-pick labels | `Episodes/ObserverSession.cs` |
+| In-Play scene reset (benchmark) | `Episodes/SceneResetter.cs` |
+| Benchmark seeds + summary maths (engine-free) | `Benchmark/BenchmarkSummary.cs` |
 | Offline arm + physics stand-in | `Tests/LuckySort.Core.Tests/FakeSim.cs` |

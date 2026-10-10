@@ -15,6 +15,7 @@ Build/
 
 # Recordings / datasets (large)
 Recordings/
+DataSessions/
 Datasets/
 *.parquet
 *.mp4

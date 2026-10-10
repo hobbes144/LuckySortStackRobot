@@ -149,6 +149,9 @@ Assets:
   - Handle: 8236559743874135003
     FilePath: Scripts/Client/Source/Recording/EpisodeRecorder.cs
     Type: ScriptFile
+  - Handle: 8289885331597427115
+    FilePath: Scripts/Client/Source/Benchmark/BenchmarkSummary.cs
+    Type: ScriptFile
   - Handle: 8386122548123399488
     FilePath: ContentVault/Robots/Panda/assets/link7_5.obj
     Type: MeshSource
@@ -212,6 +215,9 @@ Assets:
   - Handle: 10839158342888453737
     FilePath: ContentVault/Robots/Panda/assets/link6_0.obj
     Type: MeshSource
+  - Handle: 11364193421690530085
+    FilePath: Scripts/Client/Source/Episodes/SceneResetter.cs
+    Type: ScriptFile
   - Handle: 11599601854730205593
     FilePath: Scripts/Client/Source/Robot/PandaManipulator.cs
     Type: ScriptFile

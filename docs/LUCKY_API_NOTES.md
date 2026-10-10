@@ -98,6 +98,19 @@ gripper.Value = 255;       // open; 0 = closed
 - `MujocoSceneComponent.ResetToInitialState(bool preserveTime)` resets MuJoCo state.
 - Free-body placement: `WeldBody(bodyID, posMj, quatMj, persistent)` / `UnweldBody`;
   `GetBodyFreeJointIndex` + `GetJointQposAdr` + `SetQposByIndex` / `SetFullQpos` to write a free joint's pose directly.
+- AgentDocs `patterns/robot-control.md`: "There is no `SetJointPosition` — joint writes go through actuators only";
+  `WeldBody` + `GetDefaultFreeJointPosition/Quaternion` are the documented free-body "teleport"/reset path.
+- **Layout path (2026-10-09):** every layout, including the first, now goes through `SceneResetter`'s qpos
+  write, calibrated in the first frame of Play on the saved scene positions. The transform write is only a
+  logged fallback when calibration fails. My first guess that transform writes fling overlapping cubes was
+  **wrong**; the real cause was a re-parented cube (see the open bug below).
+- **In-Play reset for benchmark mode (`Episodes/SceneResetter`, 2026-10-09, VERIFY with `Debug → ResetSpike`):**
+  `ResetToInitialState(preserveTime: true)`, then each cube's free-joint qpos `[x y z qw qx qy qz]` is written with
+  `SetQposByIndex`. Nothing about body naming or the Hazel↔MuJoCo frame is documented, so `Calibrate()` measures them:
+  free bodies (`GetBodyFreeJointIndex` + `GetJointType == 0`) are matched to pool entities by Hazel-space position
+  (`GetPosition(id, true)`). The frame `mj = R·hz + t` uses `R = GetAxisHzToMj()` or its inverse (whichever fits),
+  with `t` fitted across all cubes, and the fit spread and the qpos-vs-body agreement are logged (>2 mm disables
+  the reset). Assumed: body id == body index (MuJoCo convention), and `ModelNjnt` bounds a valid joint index.
   (Docs say joint state is read-only, but the DLL exposes `SetQposByIndex`/`SetFullQpos`. Use these for reset-time placement
   only, never during manipulation. VERIFY.)
 - Whole-scene: `Application.RequestExitPlayMode()` / `RequestEnterPlayMode()`; gRPC `ResetScene` / `ResetAgent`.
@@ -134,6 +147,24 @@ Observer.RegisterTask(int index, string description);  Observer.SetCurrentTaskIn
     (`Auth` also has `Login()`, `Logout()`, `GetUsername()`). `ObserverSession` checks it and skips with a warning.
   - **Video capture needs FFmpeg:** `FFmpeg is required for video recording and was not found. You can install
     FFmpeg via Tools->FFmpeg Settings, or to your system PATH`.
+  - **Dataset location and format:** `<project>/DataSessions/session_<yyyy-MM-dd_HH-mm-ss>/`, LeRobot v3 layout:
+    `data/chunk-000/file-000.parquet` (per-frame `index, robot_id, episode_index, frame_index, timestamp, task_index,
+    frame_flags, action[8], observation.state[8]`, the 7 Panda joints + `finger_joint1`, actions named
+    `actuator1..8`), `meta/info.json` (features, fps), `meta/stats.json`, `meta/tasks.parquet`,
+    `meta/episodes/chunk-000/file-000.parquet` (per-episode `length`, **`success`**, frame ranges, video timestamps)
+    and `videos/observation.images.<Camera>/chunk-000/file-000.mp4`. `info.json` says `robot_type: "ur5e"` for the
+    Panda; that looks like an engine default, not something we set.
+  - **Recording is configured per scene** in `ObserverConfig` (in `Main.hscene`; edit it in the editor, since
+    autosave overwrites hand edits): `MaxEpisodeDurationSeconds: 90` **cuts episodes at 90 s** (our run got 4,500
+    frames at 50 Hz and was split into 2 episodes), `DataHz/VideoFramerate: 50`, `TotalEpisodes: 300`,
+    `EnableDiscardFailedEpisodes: false`, `OutputDirectory: ""` (= DataSessions), and
+    `Cameras: [{CameraName: Camera_Record, VideoWidth: 256, VideoHeight: 256}]`, which is why the video is small.
+    For full episodes, set `MaxEpisodeDurationSeconds` ≥ 600 (the state machine's episode timeout).
+  - **Task labels must be registered before `StartRecording()`.** Labels registered during the episode never
+    reached `tasks.parquet` (only `"Default Task"`; `RegisteredTasks: []` in the scene). `ObserverSession` now
+    registers all 40 possible pick labels (`StackPlanner.AllStepLabels()`) first. VERIFY on the next run.
+  - Per-episode boundaries in a multi-episode session: `EndCurrentEpisode(success)` then `BeginEpisode()` for the
+    next. VERIFY in `meta/episodes` after the first benchmark run.
   - **Scripts can't see the project folder directly.** The editor's working directory is `C:\WINDOWS\system32`
     (not writable), the script assembly's `Assembly.Location` is empty (loaded from memory), and the DLL exposes no
     project-path API (`Application.DataDirectoryPath` is the only path property). The working anchor is the
@@ -192,6 +223,31 @@ Observer.RegisterTask(int index, string description);  Observer.SetCurrentTaskIn
   more than a Large cube's ~10 mm finger clearance. Fix: `CenterOverObject` hovers 40 mm above the cube,
   measures the horizontal error and cancels it before descending. **Resolved:** random 4-colour × 4-size seeds
   now complete in editor. Details: `ENGINEERING_NOTES.md` §3.2.
+- **OPEN BUG (root cause found, not yet fixed): `LS_Obj_Red_Small` was re-parented under `LS_Obj_Yellow_Large`
+  (2026-10-09). Blocks Milestone 7.**
+  - **Symptom.** With `ResetSpike` on and seed 748253065 (4 colours × 4 sizes), the first placement check fails
+    every time: `LS_Obj_Red_Small` intended (0.546, 0.032, −0.266), actual **(0.918, 0.021, −0.049)**, 430.5 mm
+    off, yaw 28.9° off. Same pose to the millimetre on every run, and deleting `Cache/Mujoco/Models/*.mjb` made no
+    difference. `SceneResetter.Calibrate` found **15 MuJoCo free bodies for 16 cubes**. Bodies are named
+    `lucky_body_<entity ID>`, and mapping them back showed Red_Small (entity `6530565878512278646`) is the one
+    without a free joint.
+  - **Root cause.** In the working-copy `Main.hscene` (not in the 17:37 commit `64ed38b`), Red_Small has
+    `Parent: 5093231954624172071` = **`LS_Obj_Yellow_Large`**, which lists it under `Children`. Its transform became
+    parent-relative (`Position: [3, -0.166667, 4.5]`, `Scale: [0.666667, …]`). The engine compiles a child entity
+    into its parent's MuJoCo body, so Red_Small has no free joint and moves rigidly with Yellow_Large, wherever
+    that cube is placed. Almost certainly an accidental drag-and-drop in the editor's hierarchy panel.
+  - **Lesson.** I first blamed overlapping transform writes, then a stale cache. The body count and the
+    `lucky_body_<entity ID>` names were what ruled both out. A side-by-side diff of the scene entries missed the
+    `Parent:` line because I had masked long numbers to hide entity IDs.
+  - **Fix (pick one, with the editor closed):**
+    - `git diff LuckySortStack/Assets/Scenes/Main.hscene` should show only this re-parent plus the new
+      `BenchmarkEpisodes`/`ResetSpike` field values; if so, `git checkout -- LuckySortStack/Assets/Scenes/Main.hscene`
+      restores it. Those two fields then take their code defaults (1 / false).
+    - or, in the editor, drag `LS_Obj_Red_Small` back to the scene root and confirm its transform reads
+      Position (0.51, 0.032, −0.08), Scale 0.04;
+    - or regenerate the workspace with `Tools/SceneBuilder` (it replaces all `LS_*` entities).
+  - **Hardening to add:** at startup, check that every pool cube is a root entity (`Parent: 0`) and a MuJoCo
+    free body (free-body count == pool size), and name the offending cube before laying anything out.
 
 ## Scene file format (for `Tools/SceneBuilder`)
 

@@ -35,6 +35,24 @@ namespace LuckySortStack.Planning
 			return steps;
 		}
 
+		// Every step label any task can produce: colour × size × stack level, where a cube can only sit at a
+		// level with that many larger sizes below it. Fixed order, so a label's index is stable across runs
+		// (the Observer's task indices are registered from this list).
+		public static List<string> AllStepLabels()
+		{
+			var labels = new List<string>();
+			foreach (ObjectColor color in System.Enum.GetValues(typeof(ObjectColor)))
+				foreach (ObjectSize size in System.Enum.GetValues(typeof(ObjectSize)))
+					for (int order = 0; order <= (int)ObjectSize.Large - (int)size; order++)
+						labels.Add(new PlannedStep
+						{
+							Object = new SortObjectDefinition { Color = color, Size = size },
+							Stack  = new StackTarget { Color = color },
+							Order  = order,
+						}.ToString());
+			return labels;
+		}
+
 		public static string Describe(IReadOnlyList<PlannedStep> steps)
 		{
 			var sb = new StringBuilder();

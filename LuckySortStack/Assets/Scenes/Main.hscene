@@ -830,7 +830,7 @@ Entities:
       Tag: LS_Obj_Yellow_Large
     Parent: 0
     Children:
-      []
+      - Handle: 6530565878512278646
     TransformComponent:
       Position: [0.33, 0.042, -0.35]
       Rotation: [0, 0, 0]
@@ -1009,13 +1009,13 @@ Entities:
     Domain: Client
     TagComponent:
       Tag: LS_Obj_Red_Small
-    Parent: 0
+    Parent: 5093231954624172071
     Children:
       []
     TransformComponent:
-      Position: [0.51, 0.032, -0.08]
+      Position: [3, -0.166667, 4.5]
       Rotation: [0, 0, 0]
-      Scale: [0.04, 0.04, 0.04]
+      Scale: [0.666667, 0.666667, 0.666667]
     StaticMeshComponent:
       AssetID: 4241663774595030205
       MaterialTable:
@@ -1670,6 +1670,14 @@ Entities:
           Name: RecordingDirectory
           Type: String
           Value: Recordings
+        - ID: 2323937816
+          Name: BenchmarkEpisodes
+          Type: Int
+          Value: 1
+        - ID: 2429002128
+          Name: ResetSpike
+          Type: Bool
+          Value: true
         - ID: 2272155308
           Name: DropPlanSteps
           Type: Int
