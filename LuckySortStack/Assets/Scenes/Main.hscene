@@ -163,11 +163,11 @@ SceneSettings:
     RegisteredTasks:
       []
   EditorCamera:
-    Position: [1.77002, 0.906772, -1.37774]
-    FocalPoint: [-0.515192, 0.0974339, 1.01052]
-    Distance: 3.40308
-    Pitch: 0.240124
-    Yaw: -2.37824
+    Position: [1.24184, 0.692777, -0.82829]
+    FocalPoint: [-0.113071, -0.256184, 1.18986]
+    Distance: 2.60945
+    Pitch: 0.372197
+    Yaw: -2.55035
   RendererSettings:
     Shadows:
       CascadeNearPlaneOffset: 0
@@ -1654,6 +1654,10 @@ Entities:
           Name: MaxPlaceAttempts
           Type: Int
           Value: 2
+        - ID: 869721285
+          Name: VaryRetries
+          Type: Bool
+          Value: true
         - ID: 516654135
           Name: EvalPositionTolerance
           Type: Float
@@ -1677,11 +1681,11 @@ Entities:
         - ID: 2323937816
           Name: BenchmarkEpisodes
           Type: Int
-          Value: 1
+          Value: 10
         - ID: 2429002128
           Name: ResetSpike
           Type: Bool
-          Value: true
+          Value: false
         - ID: 2272155308
           Name: DropPlanSteps
           Type: Int

@@ -20,7 +20,7 @@ namespace LuckySortStack.Episodes
 	public class EpisodeManager : Entity
 	{
 		[Group("Task")] [Tooltip("Same seed + config = same task.")]
-		public int Seed = -1399230583;
+		public int Seed = 5604;
 
 		[Group("Task")] [Tooltip("Ignore Seed and draw a fresh one each Play (it is logged so it can be replayed).")]
 		public bool RandomizeSeedOnPlay = false;
@@ -77,6 +77,12 @@ namespace LuckySortStack.Episodes
 		public string GripperActuatorName = "actuator8";
 
 		[Group("Robot")]
+		public string LeftFingerTag = "left_finger";
+
+		[Group("Robot")]
+		public string RightFingerTag = "right_finger";
+
+		[Group("Robot")]
 		[Tooltip("Measure the gripper's real yaw before each descent/placement and correct it. " +
 			"Sign and offset of the yaw command are learned from these measurements.")]
 		public bool ClosedLoopYaw = true;
@@ -111,6 +117,16 @@ namespace LuckySortStack.Episodes
 
 		[Group("Motion")] [ClampValue(1, 5)]
 		public int MaxPlaceAttempts = 2;
+
+		[Group("Motion")]
+		[Tooltip("Retries change the approach: grasp turned ±90° (a cube is symmetric), and a lower centring hover after a " +
+			"collision. Off = every retry repeats the first approach exactly (the pre-2026-10-12 behaviour).")]
+		public bool VaryRetries = true;
+
+		[Group("Motion")]
+		[Tooltip("Grip each cube across the pair of faces whose open fingers have the most room from neighbouring cubes, " +
+			"checked against the measured finger axis. Off = whichever axis the yaw alignment lands on.")]
+		public bool ChooseGraspAxis = true;
 
 		[Group("Evaluation")] [Units("m")] [Slider(0.005f, 0.05f)]
 		[Tooltip("Max horizontal offset of any stacked object from its stack centre.")]
@@ -455,7 +471,9 @@ namespace LuckySortStack.Episodes
 				return;
 			}
 
-			var arm = new PandaManipulator(controller, gripper, graspSite);
+			var arm = new PandaManipulator(controller, gripper, graspSite, FindEntityByTag(LeftFingerTag), FindEntityByTag(RightFingerTag));
+			if (ChooseGraspAxis && arm.FingerAxis == null && FindEntityByTag(LeftFingerTag) == null)
+				Log.Warn($"[Episode] Finger entities '{LeftFingerTag}'/'{RightFingerTag}' not found; grasp-axis check disabled.");
 			var settings = new MotionSettings
 			{
 				TravelHeight      = TravelHeight,
@@ -468,6 +486,8 @@ namespace LuckySortStack.Episodes
 				MoveTolerance     = MoveTolerance,
 				MaxPickAttempts   = MaxPickAttempts,
 				MaxPlaceAttempts  = MaxPlaceAttempts,
+				VaryRetries       = VaryRetries,
+				ChooseGraspAxis   = ChooseGraspAxis,
 			};
 
 			List<PlannedStep> plan = StackPlanner.Plan(CurrentTask);

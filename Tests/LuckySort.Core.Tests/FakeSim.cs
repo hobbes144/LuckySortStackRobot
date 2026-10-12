@@ -39,6 +39,14 @@ namespace LuckySort.Core.Tests
 		public readonly Dictionary<string, Vector3> DropOffsetOnce = new();      // tag → offset applied on next drop
 		public readonly Dictionary<string, Vector3> PushOnce = new();            // tag → shove on next descent onto it
 		public Action<string>? OnDropped;
+		// (target, commanded yaw) → true if the arm can't reach this pose in that wrist configuration: it stops 50 mm
+		// above the target, like the hover that stalled near the robot base on seed 5594.
+		public Func<Vector3, float, bool>? MoveBlocked;
+		// Open fingers that come down on a neighbouring cube shove it, and deflect the hand into the target
+		// (the 50-seed benchmark's failure mode). Off by default so older tests keep their exact behaviour.
+		public bool FingersHitNeighbours;
+		public float FingerReach = 0.05f;
+		public float FingerHalfWidth = 0.012f;
 		public int Collisions { get; private set; }
 
 		public string? Held { get; private set; }
@@ -61,12 +69,16 @@ namespace LuckySort.Core.Tests
 
 		public Vector3 GripperPosition => m_Gripper;
 		public float GripperYaw => m_Yaw;
+		// Fingers open and close along the gripper's physical yaw direction.
+		public Vector3? FingerAxis => m_Open >= 0.5f ? new Vector3(MathF.Sin(m_Yaw), 0f, MathF.Cos(m_Yaw)) : null;
 
 		public void MoveTo(Vector3 position, float yaw, float durationSeconds)
 		{
 			float r = MathF.Sqrt(position.X * position.X + position.Z * position.Z);
 			if (r > MaxReach)
 				position = new Vector3(position.X * MaxReach / r, position.Y, position.Z * MaxReach / r);
+			if (MoveBlocked?.Invoke(position, yaw) == true)
+				position += new Vector3(0f, 0.05f, 0f);
 			m_From = m_Gripper;
 			m_To = position + TrackingBias;
 			m_YawFrom = m_Yaw;
@@ -90,6 +102,8 @@ namespace LuckySort.Core.Tests
 
 			if (Held == null)
 				CheckDescentContact();
+			if (Held == null && FingersHitNeighbours && m_Open >= 0.5f)
+				CheckFingerNeighbourContact();
 
 			if (Held == null && m_Open < 0.5f)
 				TryGrasp();
@@ -128,6 +142,38 @@ namespace LuckySort.Core.Tests
 				{
 					body.Position -= Vector3.Normalize(offset) * 0.012f;   // finger lands on the near edge
 					Collisions++;
+				}
+			}
+		}
+
+		// A finger tip inside a cube's (rotated) square footprint, at a height where it overlaps the cube, is a hit.
+		// The cube the fingers straddle is never hit this way: its faces are inside the fingers.
+		private void CheckFingerNeighbourContact()
+		{
+			Vector3 axis = FingerAxis!.Value;
+			foreach (var (tag, body) in Bodies)
+			{
+				if (m_Gripper.Y > body.Position.Y + body.Edge / 2f + 0.005f) continue;
+				foreach (float side in new[] { 1f, -1f })
+				{
+					Vector3 finger = m_Gripper + side * FingerReach * axis;
+					Vector3 d = new Vector3(finger.X - body.Position.X, 0f, finger.Z - body.Position.Z);
+					float lx = d.X * MathF.Cos(body.Yaw) - d.Z * MathF.Sin(body.Yaw);
+					float lz = d.X * MathF.Sin(body.Yaw) + d.Z * MathF.Cos(body.Yaw);
+					float half = body.Edge / 2f + FingerHalfWidth;
+					if (MathF.Abs(lx) >= half || MathF.Abs(lz) >= half) continue;
+
+					// Hit: shove the neighbour away from the finger, and the deflected hand nudges the cube under it.
+					Vector3 away = d.Length() > 1e-6f ? Vector3.Normalize(d) : new Vector3(1f, 0f, 0f);
+					body.Position += away * 0.012f;
+					Collisions++;
+					foreach (var (otherTag, other) in Bodies)
+					{
+						if (otherTag == tag) continue;
+						Vector3 g = new Vector3(other.Position.X - m_Gripper.X, 0f, other.Position.Z - m_Gripper.Z);
+						if (g.Length() < other.Edge) { other.Position -= away * 0.010f; break; }
+					}
+					return;
 				}
 			}
 		}

@@ -255,6 +255,96 @@ namespace LuckySort.Core.Tests
 			Assert.Equal(new MotionSettings().MaxPickAttempts, run.Machine.Metrics.PickAttempts);   // retried, then gave up
 		}
 
+		// Seed 5594 in the editor: the hover over a cube near the base stalled 50 mm short on every attempt, because
+		// every retry used the same wrist configuration. Here the pose is only blocked in the un-turned configuration.
+		private static Action<FakeSim> BlockUnturnedApproachTo(string tag) => sim => sim.MoveBlocked = (target, yaw) =>
+		{
+			Vector3 obj = sim.Bodies[tag].Position;
+			bool overObject = MathF.Sqrt((target.X - obj.X) * (target.X - obj.X) + (target.Z - obj.Z) * (target.Z - obj.Z)) < 0.03f
+				&& target.Y < 0.2f && sim.Held == null;
+			return overObject && MathF.Abs(yaw) <= MathF.PI / 4f + 0.01f;
+		};
+
+		[Fact]
+		public void RetryTurnsTheGraspWhenTheFirstApproachIsUnreachable()
+		{
+			var task = Task(3);
+			string tag = task.Targets[0].ExpectedObjects[0].PoolTag;
+			var run = Execute(Setup(task, BlockUnturnedApproachTo(tag), s => s.ChooseGraspAxis = false));
+
+			Assert.Equal(TaskState.Success, run.Machine.State);
+			Assert.Equal(task.Objects.Count + 1, run.Machine.Metrics.PickAttempts);
+			Assert.Contains(run.Log, l => l.StartsWith("Retry 1: grasp turned 90.0°"));
+		}
+
+		[Fact]
+		public void IdenticalRetriesReproduceTheFailure()
+		{
+			// The pre-fix behaviour, kept as a regression baseline: without varied retries the same pose fails every time.
+			var task = Task(3);
+			string tag = task.Targets[0].ExpectedObjects[0].PoolTag;
+			var run = Execute(Setup(task, BlockUnturnedApproachTo(tag), s => { s.VaryRetries = false; s.ChooseGraspAxis = false; }));
+
+			Assert.Equal(TaskState.Failure, run.Machine.State);
+			Assert.Equal(FailureReason.Unreachable, run.Machine.Metrics.Failure);
+			Assert.Equal(new MotionSettings().MaxPickAttempts, run.Machine.Metrics.PickAttempts);
+		}
+
+		[Fact]
+		public void RetryAfterACollisionLowersTheCentringHover()
+		{
+			var task = Task(12345);
+			string tag = task.Targets[0].ExpectedObjects[0].PoolTag;
+			var run = Execute(Setup(task, sim => sim.PushOnce[tag] = new Vector3(0.015f, 0f, 0f)));
+
+			Assert.Equal(TaskState.Success, run.Machine.State);
+			Assert.Contains(run.Log, l => l.StartsWith("Retry 1: other grasp axis, centring hover 20 mm"));
+			Assert.Contains(run.Log, l => l.StartsWith("Grasp axis: retry across the other faces"));
+		}
+
+		// Seeds 5569/5594/5604 in the editor: a neighbour sat where an open finger came down. Two cubes, the second
+		// placed along the first cube's default finger axis, closer than the open fingers reach.
+		private static (Run Run, string Target, string Neighbour) CrowdedPick(Action<MotionSettings>? configure = null)
+		{
+			var task = Task(21, colors: 1, maxPerColor: 2, tiers: 2);
+			var plan = StackPlanner.Plan(task);
+			string target = plan[0].Object.PoolTag;
+			string neighbour = plan[1].Object.PoolTag;
+			var run = Setup(task, sim =>
+			{
+				sim.FingersHitNeighbours = true;
+				var t = sim.Bodies[target];
+				float phi = TaskStateMachine.WrapQuarter(t.Yaw);              // where the fingers end up by default
+				var axis = new Vector3(MathF.Sin(phi), 0f, MathF.Cos(phi));
+				var n = sim.Bodies[neighbour];
+				n.Position = new Vector3(t.Position.X, n.Position.Y, t.Position.Z) + 0.075f * axis;
+				n.Yaw = phi;
+			}, configure);
+			return (Execute(run), target, neighbour);
+		}
+
+		[Fact]
+		public void GraspAxisAvoidsACrowdedNeighbour()
+		{
+			var (run, target, _) = CrowdedPick();
+
+			Assert.Equal(TaskState.Success, run.Machine.State);
+			Assert.Contains(run.Log, l => l.StartsWith("Grasp axis: fingers along"));
+			Assert.Contains(run.Log, l => l.Contains("turning the grasp 90°"));
+			Assert.DoesNotContain(run.Log, l => l.StartsWith("Collision: " + target));
+			Assert.Equal(0, run.Sim.Collisions);
+		}
+
+		[Fact]
+		public void WithoutAxisChoiceTheFingerLandsOnTheNeighbour()
+		{
+			// Baseline for the demo: the pre-fix behaviour reproduces the benchmark failure.
+			var (run, target, _) = CrowdedPick(s => { s.ChooseGraspAxis = false; s.VaryRetries = false; });
+
+			Assert.True(run.Sim.Collisions > 0);
+			Assert.Contains(run.Log, l => l.StartsWith("Collision: " + target));
+		}
+
 		[Fact]
 		public void StatesFollowThePickPlaceCycle()
 		{

@@ -388,10 +388,86 @@ Failed seeds (replay with Seed = …): 5569, 5594, 5604
 
 **The pattern: retries repeat the same motion.** In every failed episode, each retry logged the *same* numbers (same
 50 mm hover error, same 8 mm push at the same offset). The recovery path re-runs an identical approach, so a deterministic
-failure stays failed. Candidate fixes, in order of expected value (not yet implemented):
-1. **Vary the retry.** A cube is symmetric under 90° turns, so a retry can approach at yaw + 90°. That changes the wrist
-   configuration, and with it both the IK solution (5594) and the tracking error (5569, 5604).
-2. **Re-centre closer to the object** on retries (a lower `PreGraspClearance`), so less drift accumulates during the final descent.
+failure stays failed. Fixes, in order of expected value:
+1. **Vary the retry** (*implemented 2026-10-12, `MotionSettings.VaryRetries`; awaiting an editor re-run of the 3 seeds*).
+   A cube is symmetric under 90° turns, so retry 1 approaches with the grasp turned +90° and retry 2 with −90° (the other
+   side, in case one direction hits a wrist limit). That changes the wrist configuration, and with it both the IK
+   solution (5594) and the tracking error (5569, 5604). Logged as `Retry n: grasp turned …°, centring hover … mm`.
+2. **Re-centre closer to the object** after a collision (*implemented*): the retry's centring hover drops from 40 mm to
+   `RetryPreGraspClearance` = 20 mm above the cube, so less drift accumulates between the last measurement and the fingers
+   reaching the cube. Not applied after `Unreachable`, where a lower target would only be harder to reach.
+   Offline: `RetryTurnsTheGraspWhenTheFirstApproachIsUnreachable` reproduces 5594 in `FakeSim` (a pose blocked only in
+   the un-turned wrist configuration) and passes; `IdenticalRetriesReproduceTheFailure` keeps the old behaviour
+   (`VaryRetries = false`) as a baseline that fails 3/3; `RetryAfterACollisionLowersTheCentringHover` covers item 2.
+   Demo A/B: the `VaryRetries` toggle on `EpisodeManager` → Motion.
+   **Editor replay (2026-10-12, 725/725 tests passing):**
+   - **5569: now PASS.** `Retry 1: grasp turned 90.0°` picked the cube that failed 3/3 before.
+   - **5594: still Unreachable.** Every attempt missed in the same direction (outward and high) whichever way the grasp
+     was turned, and each failed attempt pushed the cube further toward the base (0.311 m → ~0.29 m). This is the arm's
+     inner workspace limit (first diagnosis; **superseded below**: it was a neighbour collision).
+   - **5604: still GraspFailed** after three different approaches (0°, +90°, −90°; 40 mm then 20 mm hover). Since varying
+     the wrist didn't help, the cause probably isn't the wrist configuration. Needs the `Collision:` lines from the replay.
+   Net: varied retries fixed 1 of 3.
+
+**Root cause found (2026-10-12): the open fingers hit a Large neighbour.** The per-object final positions in the episode
+records show that in all three failed episodes, a **Large cube that was never picked moved anyway**, and it sat at the
+generator's minimum spacing from the cube being picked:
+
+| Seed | Target | Disturbed neighbour (never picked) | Centre distance | Neighbour moved |
+|---|---|---|---|---|
+| 5569 | Red_Tiny (30 mm) | Blue_Large (60 mm) | 90 mm | 55 mm |
+| 5594 | Red_Small (40 mm) | Green_Large (60 mm) | 91 mm | 20 mm |
+| 5604 | Red_Small (40 mm) | Yellow_Large (60 mm) | 93 mm | 18 mm |
+
+- **Why.** `TaskGenerator` spaces cubes by their bounding circles plus `GripperClearance` (20 mm): Small (28 mm) + Large
+  (42 mm) + 20 mm = **91 mm minimum**. That keeps *cubes* apart, but the open Panda fingers reach ~40 mm + finger
+  thickness (~50 mm) from the target's centre, and a Large neighbour's corner can be as close as 91 − 42 = **49 mm**. The
+  spacing rule models the cube, not the gripper.
+- **It also explains 5594**, which I had put down to the inner reach limit. That was wrong. The gripper there stopped
+  **~21 mm too high**, which is exactly the height difference between a Large cube's top and a Small one's (60 vs 40 mm):
+  the finger was resting on Green_Large. The "cube drifting toward the base" was that same contact.
+- **It explains the push direction in 5604.** Yellow_Large lay at bearing ~69° from Red_Small, and Red_Small's face axis
+  was at 71°: the fingers pointed straight at it.
+- **Lesson:** the deciding evidence was in data already recorded (final positions of objects that were *never touched*
+  by the plan). A failure analysis that only reads the target object's log lines misses it.
+
+**Fix options:**
+1. **Generator (gripper-aware spacing):** each cube's keep-out radius becomes max(bounding circle, open-finger reach), so
+   every generated layout is graspable. This changes the task for affected seeds (the seed → task mapping and possibly
+   the golden fingerprint).
+2. **Robot side (clearance-aware grasp axis):** a cube can be grasped across either pair of faces; pick the finger axis
+   that points away from the nearest neighbours. Needs the finger axis direction measured in-engine (`GripperYaw` is
+   only known mod 90°). This is the general fix for cluttered scenes.
+
+**Chosen: option 2, implemented 2026-10-12. Editor replay: 5569, 5594 and 5604 all PASS** (50-seed re-run pending).
+On 5604 the log shows the whole loop:
+
+```text
+Grasp axis: fingers along 161° (clearance 9 mm; other axis 71° has -12 mm)
+Finger axis is 71°, wanted 161°: turning the grasp 90°
+```
+
+The default alignment put the fingers across the faces whose finger would have landed on Yellow_Large (−12 mm =
+overlap). The measured finger axis caught it, and the turned grasp picked the cube. The "fingers won't reopen" symptom
+seen on the old build (a finger squeezed inward while resting on the neighbour) is gone too.
+
+Option 1 would have changed the task behind many recorded seeds, and option 2 is what cluttered scenes need anyway.
+- **Choose (`TaskStateMachine.ChooseGraspAxis`).** Before each pick, both candidate finger axes (the cube's two face
+  normals) are scored: for each, the smallest gap between either open finger (`FingerReach` 50 mm out, `FingerHalfWidth`
+  12 mm) and any other task cube's bounding circle, using live positions. If both have ≥ `AxisClearEnough` (30 mm), no
+  constraint (no extra wrist turn). Otherwise the clearer axis is required, logged as
+  `Grasp axis: fingers along …° (clearance … mm; other axis …° has … mm)`.
+- **Measure, then correct (`CorrectFingerAxis`).** `GripperYaw` is only known mod 90°, so it can't tell the two grasps
+  apart. `PandaManipulator.FingerAxis` measures it directly: the `left_finger` and `right_finger` bodies share an origin
+  and slide apart along the finger axis, so with the gripper open the line between them *is* the axis. After yaw
+  alignment, if the fingers are across the wrong faces, the grasp is turned 90° (towards the smaller command, away from
+  wrist limits) and aligned again: `Finger axis is …°, wanted …°: turning the grasp 90°`.
+- **Varied retries now flip the axis by measurement:** retry 1 requires the axis the previous attempt did *not* use
+  (`Grasp axis: retry across the other faces …`), instead of a blind +90° command.
+- **Toggles:** `EpisodeManager` → Motion → `ChooseGraspAxis` (and `VaryRetries`), for a live before/after.
+- **Tests:** `FakeSim.FingersHitNeighbours` models the failure (a finger tip inside a neighbour's footprint shoves it
+  and deflects the hand into the target). `GraspAxisAvoidsACrowdedNeighbour` passes with no collision;
+  `WithoutAxisChoiceTheFingerLandsOnTheNeighbour` reproduces the benchmark failure as a baseline.
 3. **Tighten the generator's reach annulus** only if a longer run shows failures clustering by radius. In this run, objects
    at r ≈ 0.30–0.35 m and 0.60–0.70 m were stacked at much the same rate as mid-range ones, so 3 failures aren't enough evidence.
 

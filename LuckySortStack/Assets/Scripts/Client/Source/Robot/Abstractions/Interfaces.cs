@@ -14,6 +14,10 @@ namespace LuckySortStack.Robot
 		// modulo 90°, which is all a cube grasp needs.
 		float GripperYaw { get; }
 
+		// Horizontal unit vector along which the fingers open and close (sign is meaningless), or null when it
+		// can't be measured (e.g. fingers closed). Unlike GripperYaw this tells the two 90°-apart grasps apart.
+		Vector3? FingerAxis { get; }
+
 		// Issue one Cartesian move. yaw = rotation of the gripper about world Y (radians),
 		// gripper pointing straight down. A new call cancels any move in flight.
 		void MoveTo(Vector3 position, float yaw, float durationSeconds);

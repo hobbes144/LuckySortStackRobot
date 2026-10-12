@@ -39,8 +39,11 @@ starting any stage.
 
 ### Next session: start here
 1. Commit the fixed `Main.hscene` (Red_Small back at the root) together with the reset fix.
-2. Optional robustness work from §6.2: vary the retry (approach at yaw + 90°, re-centre lower), then re-run seeds
-   5569, 5594 and 5604 to confirm.
+2. Grasp-axis choice is implemented and verified on the 3 failed seeds (§6.2). Remember: the editor needs
+   `dotnet build LuckySortStack/Assets/Scripts/Client/LuckySortStack.csproj`; `dotnet test` doesn't rebuild it.
+   Re-run 50 seeds 5555–5604 (same seeds, compare with 94 %) and 50 fresh seeds (e.g. 6000–6049, out-of-sample).
+3. Next feature (agreed direction): a replanning planner (defer a failed pick, respect stack dependencies), then a
+   cluttered-start difficulty level (random wrong-order stacks → unstack + buffer spots). ML policy is a later stretch.
 3. In the editor's ObserverConfig, set `MaxEpisodeDurationSeconds` ≥ 600 (it cuts episodes at 90 s) and
    enlarge `Camera_Record` (256×256). Check that `meta/tasks.parquet` now holds the 40 pick labels.
 4. `EpisodeManager.Seed` is still −1399230583 (folded to 748253065 for benchmarks); set a non-negative seed.

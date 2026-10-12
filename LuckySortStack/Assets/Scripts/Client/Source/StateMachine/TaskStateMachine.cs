@@ -56,6 +56,25 @@ namespace LuckySortStack.StateMachine
 		public float CenterTolerance = 0.003f;      // horizontal grasp-site error allowed before descending
 		public int MaxCenterIterations = 3;
 
+		// Retries change the approach instead of repeating it. In the 50-seed benchmark every failed retry logged the
+		// same numbers as the attempt before it (same 50 mm hover error, same 8 mm push): the failures depended on the
+		// arm configuration, and an identical retry reproduces the identical configuration. A cube is symmetric under
+		// 90° turns, so the grasp can be turned ±90° for free, which puts the wrist (and the IK solution, and its
+		// tracking error) somewhere else. After a push, the centring hover is also lowered so less drift accumulates
+		// between the last measurement and the fingers reaching the cube.
+		public bool VaryRetries = true;
+		public float RetryPreGraspClearance = 0.02f;   // centring hover height on a retry after a collision
+
+		// Grasp-axis choice. A cube can be gripped across either pair of faces. The open fingers reach ~50 mm from the
+		// cube's centre, further than the generator's spacing guarantees, so a neighbour can sit where a finger comes
+		// down (50-seed benchmark: all 3 failures were a finger landing on a Large neighbour ~91 mm away). Before each
+		// pick, score both axes by the clearance between the finger tips and every other cube, and grip across the
+		// clearer one. The real finger axis is measured after alignment and corrected by 90° if it's the wrong one.
+		public bool ChooseGraspAxis = true;
+		public float FingerReach = 0.05f;            // finger centre distance from the grasp centre when open
+		public float FingerHalfWidth = 0.012f;       // finger footprint radius
+		public float AxisClearEnough = 0.03f;        // both axes at least this clear → don't constrain (no extra wrist turn)
+
 		public float GraspOffsetY = 0.0f;           // grasp-site height relative to object centre
 		public float PushTolerance = 0.008f;        // object moved this far during descent = collision
 		public float PlaceGap = 0.003f;             // release this far above resting contact
@@ -114,6 +133,12 @@ namespace LuckySortStack.StateMachine
 		private Vector3 m_ObjectAtDescent;
 		private Vector3 m_PosCorrection;            // added to pick targets to cancel the measured tracking error
 		private int m_CenterIteration;
+		private float m_RetryYaw;                   // extra grasp yaw for this pick attempt: 0, +90°, −90°, …
+		private float m_HoverClearance;             // centring hover height for this pick attempt
+		private Vector3? m_WantedFingerAxis;        // horizontal axis the fingers should close along for this pick
+		private bool m_AxisCorrected;               // one 90° axis correction per approach
+		private Vector3? m_LastFingerAxis;          // measured finger axis of the previous attempt on this object
+		private readonly List<SortObjectDefinition> m_Objects;
 
 		private float m_YawSign;
 		private float m_YawOffset;
@@ -133,6 +158,8 @@ namespace LuckySortStack.StateMachine
 			m_Cfg   = settings;
 			m_Steps = new List<PlannedStep>(steps);
 			m_YawSign = settings.YawSign >= 0f ? 1f : -1f;
+			m_HoverClearance = settings.PreGraspClearance;
+			m_Objects = new List<SortObjectDefinition>(task.Objects);
 			for (int i = 0; i < task.Targets.Count; i++) m_Placed[i] = new List<(SortObjectDefinition, Vector3)>();
 		}
 
@@ -198,7 +225,9 @@ namespace LuckySortStack.StateMachine
 					m_Arm.SetGripper(1f);
 					m_PosCorrection = Vector3.Zero;
 					m_ObjectAtDescent = ObjectPos(step!);
-					StartMove(new Vector3(m_ObjectAtDescent.X, m_Cfg.TravelHeight, m_ObjectAtDescent.Z), CommandFor(ObjectYaw(step!)), m_Cfg.TravelSpeed);
+					ChooseApproach(m_PickAttempts - 1);
+					ChooseGraspAxis(step!, m_PickAttempts - 1);
+					StartMove(new Vector3(m_ObjectAtDescent.X, m_Cfg.TravelHeight, m_ObjectAtDescent.Z), CommandFor(ObjectYaw(step!)) + m_RetryYaw, m_Cfg.TravelSpeed);
 					break;
 				}
 				case TaskState.CenterOverObject:
@@ -312,6 +341,11 @@ namespace LuckySortStack.StateMachine
 			if (MathF.Abs(error) <= m_Cfg.YawTolerance)
 			{
 				m_YawCalibrated = true;
+				if (m_AlignNext == TaskState.CenterOverObject)
+				{
+					if (CorrectFingerAxis()) return;
+					m_LastFingerAxis = m_Arm.FingerAxis;
+				}
 				TransitionTo(m_AlignNext);
 				return;
 			}
@@ -332,8 +366,103 @@ namespace LuckySortStack.StateMachine
 			m_AlignPrevError = error;
 			m_AlignIteration++;
 
-			StartMove(m_MoveTarget, CommandFor(m_AlignDesired), m_MoveSpeed);
+			float retryYaw = m_AlignNext == TaskState.CenterOverObject ? m_RetryYaw : 0f;   // keep the turned grasp while correcting
+			StartMove(m_MoveTarget, CommandFor(m_AlignDesired) + retryYaw, m_MoveSpeed);
 			m_StateTime = 0f;
+		}
+
+		// Pick the finger axis for this approach: on the first try (and every even retry) the axis with more clearance to
+		// the neighbours, on odd retries the other one (a varied retry). Scoring uses live positions of every task cube.
+		private void ChooseGraspAxis(PlannedStep step, int retry)
+		{
+			m_WantedFingerAxis = null;
+			m_AxisCorrected = false;
+			if (retry == 0) m_LastFingerAxis = null;
+			if (!m_Cfg.ChooseGraspAxis) return;
+
+			Vector3 p = ObjectPos(step);
+			float yaw = ObjectYaw(step);
+			var a = new Vector3(MathF.Sin(yaw), 0f, MathF.Cos(yaw));    // the cube's two horizontal face normals
+			var b = new Vector3(MathF.Cos(yaw), 0f, -MathF.Sin(yaw));
+			float ca = FingerClearance(step, p, a), cb = FingerClearance(step, p, b);
+
+			if (retry % 2 == 1 && m_Cfg.VaryRetries)
+			{
+				// Varied retry: the axis the previous attempt did NOT use. Without a measured axis, fall back to a plain 90° turn.
+				if (m_LastFingerAxis == null) { m_RetryYaw = MathF.PI / 2f; return; }
+				bool lastWasA = MathF.Abs(Vector3.Dot(m_LastFingerAxis.Value, a)) >= 0.7071f;
+				m_WantedFingerAxis = lastWasA ? b : a;
+				Emit($"Grasp axis: retry across the other faces, fingers along {AxisDeg(m_WantedFingerAxis.Value):F0}° " +
+					$"(clearance {(lastWasA ? cb : ca) * 1000f:F0} mm)");
+				return;
+			}
+
+			if (MathF.Min(ca, cb) >= m_Cfg.AxisClearEnough) return;   // room either way: take whichever the alignment gives
+			bool preferA = ca >= cb;
+			m_WantedFingerAxis = preferA ? a : b;
+			Emit($"Grasp axis: fingers along {AxisDeg(m_WantedFingerAxis.Value):F0}° (clearance {(preferA ? ca : cb) * 1000f:F0} mm; " +
+				$"other axis {AxisDeg(preferA ? b : a):F0}° has {(preferA ? cb : ca) * 1000f:F0} mm)");
+		}
+
+		// Smallest gap between either open finger and any other cube's bounding circle, for fingers along `axis`.
+		private float FingerClearance(PlannedStep step, Vector3 centre, Vector3 axis)
+		{
+			float best = float.MaxValue;
+			foreach (SortObjectDefinition other in m_Objects)
+			{
+				if (other.PoolTag == step.Object.PoolTag) continue;
+				Vector3 o = m_World.GetObjectPosition(other.PoolTag);
+				float r = other.Edge * 0.5f * MathF.Sqrt(2f);
+				foreach (float side in new[] { 1f, -1f })
+				{
+					Vector3 finger = centre + side * m_Cfg.FingerReach * axis;
+					best = MathF.Min(best, HorizontalDistance(finger, o) - r - m_Cfg.FingerHalfWidth);
+				}
+			}
+			return best;
+		}
+
+		// After the yaw is aligned (mod 90°), check the measured finger axis. If the fingers are across the other pair of
+		// faces, turn the grasp 90° (towards a smaller command, to keep the wrist away from its limits) and align again.
+		private bool CorrectFingerAxis()
+		{
+			if (m_WantedFingerAxis == null || m_AxisCorrected) return false;
+			Vector3? measured = m_Arm.FingerAxis;
+			if (measured == null) return false;
+			float along = MathF.Abs(Vector3.Dot(measured.Value, m_WantedFingerAxis.Value));
+			if (along >= 0.7071f) return false;
+
+			m_AxisCorrected = true;
+			m_RetryYaw += m_CommandedYaw > 0f ? -MathF.PI / 2f : MathF.PI / 2f;
+			Emit($"Finger axis is {AxisDeg(measured.Value):F0}°, wanted {AxisDeg(m_WantedFingerAxis.Value):F0}°: turning the grasp 90°");
+			m_AlignIteration = 0;
+			StartMove(m_MoveTarget, CommandFor(m_AlignDesired) + m_RetryYaw, m_MoveSpeed);
+			m_StateTime = 0f;
+			return true;
+		}
+
+		private static float AxisDeg(Vector3 axis)
+		{
+			float d = MathF.Atan2(axis.X, axis.Z) * 180f / MathF.PI;
+			return d < 0f ? d + 180f : (d >= 180f ? d - 180f : d);
+		}
+
+		// Approach for pick attempt `retry` (0 = first try): the grasp alternates +90°, −90° on retries (−90° second so a
+		// wrist limit on one side still leaves the other), and after a collision the centring hover is lowered.
+		private void ChooseApproach(int retry)
+		{
+			m_RetryYaw = 0f;
+			m_HoverClearance = m_Cfg.PreGraspClearance;
+			if (retry == 0 || !m_Cfg.VaryRetries) return;
+
+			// With axis choice on, the retry's axis flip comes from ChooseGraspAxis + CorrectFingerAxis instead.
+			if (!m_Cfg.ChooseGraspAxis) m_RetryYaw = (retry % 2 == 1 ? 1f : -1f) * MathF.PI / 2f;
+			if (m_RecoveryReason == FailureReason.GraspFailed)
+				m_HoverClearance = Math.Min(m_Cfg.PreGraspClearance, m_Cfg.RetryPreGraspClearance);
+			Emit(m_Cfg.ChooseGraspAxis
+				? $"Retry {retry}: other grasp axis, centring hover {m_HoverClearance * 1000f:F0} mm above the cube (after {m_RecoveryReason})"
+				: $"Retry {retry}: grasp turned {Deg(m_RetryYaw)}°, centring hover {m_HoverClearance * 1000f:F0} mm above the cube " +
+				  $"(after {m_RecoveryReason})");
 		}
 
 		// Hover just above the object and measure where the grasp site really is. The miss is
@@ -583,7 +712,7 @@ namespace LuckySortStack.StateMachine
 		private Vector3 PreGraspPoint(PlannedStep step)
 		{
 			Vector3 obj = ObjectPos(step);
-			return new Vector3(obj.X, obj.Y + step.Object.Edge / 2f + m_Cfg.PreGraspClearance, obj.Z);
+			return new Vector3(obj.X, obj.Y + step.Object.Edge / 2f + m_HoverClearance, obj.Z);
 		}
 
 		private Vector3 ObjectPos(PlannedStep step) => m_World.GetObjectPosition(step.Object.PoolTag);

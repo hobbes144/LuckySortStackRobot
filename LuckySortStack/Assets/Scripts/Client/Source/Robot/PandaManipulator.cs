@@ -23,12 +23,16 @@ namespace LuckySortStack.Robot
 		private readonly RobotControllerComponent m_Robot;
 		private readonly MujocoActuator m_Gripper;
 		private readonly Entity m_GraspSite;
+		private readonly Entity? m_LeftFinger, m_RightFinger;
 
-		public PandaManipulator(RobotControllerComponent robot, MujocoActuator gripper, Entity graspSite)
+		public PandaManipulator(RobotControllerComponent robot, MujocoActuator gripper, Entity graspSite,
+			Entity? leftFinger = null, Entity? rightFinger = null)
 		{
-			m_Robot     = robot;
-			m_Gripper   = gripper;
-			m_GraspSite = graspSite;
+			m_Robot       = robot;
+			m_Gripper     = gripper;
+			m_GraspSite   = graspSite;
+			m_LeftFinger  = leftFinger;
+			m_RightFinger = rightFinger;
 			m_Gripper.IK = false;   // script owns the gripper; otherwise the graph overwrites it every substep
 		}
 
@@ -52,6 +56,21 @@ namespace LuckySortStack.Robot
 				foreach (Vector3 axis in new[] { q * new Vector3(0f, 1f, 0f), q * new Vector3(0f, 0f, 1f) })
 					if (Mathf.Abs(axis.Y) < Mathf.Abs(best.Y)) best = axis;
 				return Mathf.Atan2(best.X, best.Z);
+			}
+		}
+
+		// The two finger bodies share an origin when closed and slide apart along the finger axis, so with the
+		// gripper open the line between them is the axis the fingers close along (panda.xml: left_finger /
+		// right_finger, finger_joint1/2). Below 20 mm of separation the direction isn't trustworthy.
+		public Num.Vector3? FingerAxis
+		{
+			get
+			{
+				if (m_LeftFinger == null || m_RightFinger == null) return null;
+				Vector3 d = m_RightFinger.Transform.WorldTranslation - m_LeftFinger.Transform.WorldTranslation;
+				float len = Mathf.Sqrt(d.X * d.X + d.Z * d.Z);
+				if (len < 0.02f) return null;
+				return new Num.Vector3(d.X / len, 0f, d.Z / len);
 			}
 		}
 
