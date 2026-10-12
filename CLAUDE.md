@@ -32,12 +32,15 @@ starting any stage.
   2026-10-12** (`ResetSpike` seeds 5555–5564, 10/10 OK) after fixing three bugs: a re-parented cube, the orientation
   convention of the qpos write, and `ResetToInitialState` on frame 1 slumping the arm. Write-up for the demo:
   `docs/ENGINEERING_NOTES.md` §6.1. **First full benchmark 2026-10-12: seeds 5555–5564, 10/10 PASS (95% CI 72–100 %),
-  mean 144.5 s ± 18.0, 1.00 picks per object, 0 robot/evaluator disagreements** (`Recordings/20261012_005521/`)
+  mean 144.5 s ± 18.0, 1.00 picks per object, 0 robot/evaluator disagreements** (`Recordings/20261012_005521/`).
+  **50 seeds (5555–5604): 47/50 = 94 %, 95% CI 84–98 %**, failures GraspFailed ×2 (5569, 5604), Unreachable ×1 (5594),
+  0 disagreements (`Recordings/20261012_013747/`). Failure analysis: `docs/ENGINEERING_NOTES.md` §6.2
 - [ ] Milestone 8 (see plan §24)
 
 ### Next session: start here
 1. Commit the fixed `Main.hscene` (Red_Small back at the root) together with the reset fix.
-2. Optional: a longer benchmark (e.g. 30–50 seeds) to narrow the 72–100 % confidence interval for the demo.
+2. Optional robustness work from §6.2: vary the retry (approach at yaw + 90°, re-centre lower), then re-run seeds
+   5569, 5594 and 5604 to confirm.
 3. In the editor's ObserverConfig, set `MaxEpisodeDurationSeconds` ≥ 600 (it cuts episodes at 90 s) and
    enlarge `Camera_Record` (256×256). Check that `meta/tasks.parquet` now holds the 40 pick labels.
 4. `EpisodeManager.Seed` is still −1399230583 (folded to 748253065 for benchmarks); set a non-negative seed.

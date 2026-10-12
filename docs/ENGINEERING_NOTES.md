@@ -355,6 +355,46 @@ object needed a retry. Per-episode records and the summary are in `Recordings/20
   orientation are all calibrated from the saved scene, and each refuses to run when the measurements disagree.
 - **Check a test before trusting it.** The same-frame readback "proved" a failure that wasn't there.
 
+### 6.2 50-seed benchmark and failure analysis (2026-10-12)
+
+`BenchmarkEpisodes = 50`, seeds 5555–5604, 4 colours × 4 sizes, random positions and yaws, one unattended Play session
+(`Recordings/20261012_013747/`):
+
+```text
+Success rate 94 % (47/50), 95% CI 84 %–98 %
+Categories: Success 47, GraspFailed 2, Unreachable 1
+Duration (all):     mean 141.5s ± 32.3  (min 29.2, median 145.6, max 177.0, n=50)
+Duration (success): mean 148.2s ± 18.2  (min 111.2, median 146.7, max 177.0, n=47)
+Picks per object (successful episodes) 1.00, objects correctly stacked 94.5 %, robot/evaluator disagreements 0
+Failed seeds (replay with Seed = …): 5569, 5594, 5604
+```
+
+**How to read it.**
+- **94 %, 95% CI 84–98 %.** The 10-seed run's "100 %" (CI 72–100 %) was consistent with this; more seeds narrowed the
+  claim and surfaced the rare failures. That's why the summary reports an interval, not just a rate.
+- **Per pick, it's ~99.5 % reliable.** The 50 tasks held 619 objects in total; 3 picks failed beyond recovery. One bad pick
+  ends the episode, so a ~0.5 % per-pick failure rate compounds to ~6 % over a 10–16-object task.
+- **0 robot/evaluator disagreements.** Every failure was one the robot itself noticed and reported correctly; none was a
+  silent "robot says success, scene says otherwise".
+- **Failures are short.** All three ended at 29–39 s on the 2nd–3rd object. The robot gives up cleanly rather than flailing.
+
+**The three failures** (from each `episode_NNNN.json` timeline; replay any of them by setting `Seed`):
+
+| Seed | Category | Object | What the log shows |
+|---|---|---|---|
+| 5569 | GraspFailed | Red_Tiny (30 mm), r = 0.63 m | First descent stalled 25 mm short and nudged the cube 7 mm. The retry came down with the grasp site 24 mm off the cube's centre and pushed it 8 mm. Yaw was right (160° ≡ −20° mod 90°). |
+| 5604 | GraspFailed | Red_Small (40 mm), r = 0.63 m | Two descents, both pushed the cube 8 mm, with the grasp site ~13 mm off centre and yaw within 1° (mod 90°). |
+| 5594 | Unreachable | Red_Small (40 mm), r = 0.31 m | Pre-grasp hover target 90 mm above the surface; the arm stopped 45 mm above it, 50 mm from target, on every attempt. The cube is near the inner edge of the reach annulus (0.28 m), where IK can't bring the hand down vertically. |
+
+**The pattern: retries repeat the same motion.** In every failed episode, each retry logged the *same* numbers (same
+50 mm hover error, same 8 mm push at the same offset). The recovery path re-runs an identical approach, so a deterministic
+failure stays failed. Candidate fixes, in order of expected value (not yet implemented):
+1. **Vary the retry.** A cube is symmetric under 90° turns, so a retry can approach at yaw + 90°. That changes the wrist
+   configuration, and with it both the IK solution (5594) and the tracking error (5569, 5604).
+2. **Re-centre closer to the object** on retries (a lower `PreGraspClearance`), so less drift accumulates during the final descent.
+3. **Tighten the generator's reach annulus** only if a longer run shows failures clustering by radius. In this run, objects
+   at r ≈ 0.30–0.35 m and 0.60–0.70 m were stacked at much the same rate as mid-range ones, so 3 failures aren't enough evidence.
+
 **The summary (`BenchmarkSummary`, engine-free).**
 - **Success rate with a 95% Wilson interval.** At n = 10, "9/10" is a 60–98% claim, not "90%". The Wilson interval
   stays sensible at 0% and 100%, where the normal approximation collapses to ±0.
