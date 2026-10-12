@@ -133,6 +133,8 @@ namespace LuckySortStack.Recording
 					PlaceAttempts      = robot.PlaceAttempts,
 					GraspFailures      = robot.GraspFailures,
 					PlacementFailures  = robot.PlacementFailures,
+					Deferrals          = robot.Deferrals,
+					BufferMoves        = robot.BufferMoves,
 					Duration           = robot.Duration,
 				},
 				Stacks = eval.Stacks.Select(s => new StackRecord

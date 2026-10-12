@@ -57,6 +57,12 @@ namespace LuckySortStack.Generation
 
 			// 6-7. Positions and rotations.
 			PlaceObjects(task, config, workspace, rng);
+
+			// 8. Cluttered starts. Strictly after every existing draw, and only when on, so clutter-free seeds are unchanged.
+			if (config.PileCount > 0) BuildPiles(task, config, workspace, rng);
+
+			task.SurfaceY = workspace.SurfaceY;
+			task.Workspace = workspace;
 			return task;
 		}
 
@@ -102,6 +108,47 @@ namespace LuckySortStack.Generation
 				if (!ok) return false;
 			}
 			return true;
+		}
+
+		// Pile some cubes on others: pick a base, then 1..MaxPileHeight−1 other cubes (any colour, random order) on top.
+		// Without AllowInvertedPiles a cube only goes on one at least as large, so piles are physically stable and their
+		// footprint is the base's (which already satisfies the spacing rule). With it, a larger cube must still clear
+		// every other cube's footprint. Climbers share the base's yaw so faces rest flat.
+		private static void BuildPiles(TaskDefinition task, TaskConfig config, WorkspaceSpec ws, Random rng)
+		{
+			var used = new HashSet<SortObjectDefinition>();
+			int piles = 0;
+			foreach (var baseObj in Shuffle(new List<SortObjectDefinition>(task.Objects), rng))
+			{
+				if (piles >= config.PileCount) break;
+				if (used.Contains(baseObj)) continue;
+
+				int height = rng.Next(2, config.MaxPileHeight + 1);
+				var pile = new List<SortObjectDefinition> { baseObj };
+				var candidates = Shuffle(task.Objects.Where(o => o != baseObj && !used.Contains(o)).ToList(), rng);
+				foreach (var c in candidates)
+				{
+					if (pile.Count >= height) break;
+					SortObjectDefinition top = pile[pile.Count - 1];
+					if (c.Edge > top.Edge)
+					{
+						if (!config.AllowInvertedPiles) continue;
+						bool clear = task.Objects.Where(o => o != c && !pile.Contains(o)).All(o =>
+							DistanceXZ(o.InitialPosition, baseObj.InitialPosition.X, baseObj.InitialPosition.Z) >=
+							FootprintRadius(c.Edge) + FootprintRadius(o.Edge) + ws.GripperClearance);
+						if (!clear) continue;
+					}
+					c.InitialPosition = new Vector3(baseObj.InitialPosition.X,
+						top.InitialPosition.Y + (top.Edge + c.Edge) / 2f + ws.SpawnDropHeight,
+						baseObj.InitialPosition.Z);
+					c.InitialYaw = baseObj.InitialYaw;
+					c.InitialSupport = top.PoolTag;
+					pile.Add(c);
+				}
+				if (pile.Count < 2) continue;   // nothing fitted on this base
+				foreach (var p in pile) used.Add(p);
+				piles++;
+			}
 		}
 
 		// Deterministic grid across the spawn region, yaw 0 (fixed-position difficulty / fallback).

@@ -204,7 +204,7 @@ namespace LuckySort.Core.Tests
 		{
 			var task = Task(7);
 			string tag = task.Targets[0].ExpectedObjects[0].PoolTag;
-			var run = Execute(Setup(task, sim => sim.GraspMisses[tag] = 99));
+			var run = Execute(Setup(task, sim => sim.GraspMisses[tag] = 99, s => s.DeferFailedPicks = false));
 
 			Assert.Equal(TaskState.Failure, run.Machine.State);
 			Assert.Equal(FailureReason.GraspFailed, run.Machine.Metrics.Failure);
@@ -248,7 +248,7 @@ namespace LuckySort.Core.Tests
 			{
 				sim.MaxReach = 0.6f;
 				sim.Bodies[tag].Position = new Vector3(0.75f, sim.Bodies[tag].Position.Y, 0f);
-			}));
+			}, s => s.DeferFailedPicks = false));
 
 			Assert.Equal(TaskState.Failure, run.Machine.State);
 			Assert.Equal(FailureReason.Unreachable, run.Machine.Metrics.Failure);
@@ -283,7 +283,7 @@ namespace LuckySort.Core.Tests
 			// The pre-fix behaviour, kept as a regression baseline: without varied retries the same pose fails every time.
 			var task = Task(3);
 			string tag = task.Targets[0].ExpectedObjects[0].PoolTag;
-			var run = Execute(Setup(task, BlockUnturnedApproachTo(tag), s => { s.VaryRetries = false; s.ChooseGraspAxis = false; }));
+			var run = Execute(Setup(task, BlockUnturnedApproachTo(tag), s => { s.VaryRetries = false; s.ChooseGraspAxis = false; s.DeferFailedPicks = false; }));
 
 			Assert.Equal(TaskState.Failure, run.Machine.State);
 			Assert.Equal(FailureReason.Unreachable, run.Machine.Metrics.Failure);
@@ -343,6 +343,97 @@ namespace LuckySort.Core.Tests
 
 			Assert.True(run.Sim.Collisions > 0);
 			Assert.Contains(run.Log, l => l.StartsWith("Collision: " + target));
+		}
+
+		// ── Replanning: deferred picks ─────────────────────────────────────
+
+		// Drop order of every placed object, to check what got built when.
+		private static List<string> RecordDrops(Run run)
+		{
+			var drops = new List<string>();
+			run.Sim.OnDropped = drops.Add;
+			return drops;
+		}
+
+		[Fact]
+		public void FailedPickIsDeferredAndOtherStacksAreBuiltFirst()
+		{
+			var task = Task(7);
+			var plan = StackPlanner.Plan(task);
+			string tag = plan[0].Object.PoolTag;
+			int stack = plan[0].StackIndex;
+			var run = Setup(task, sim => sim.GraspMisses[tag] = new MotionSettings().MaxPickAttempts);   // fails one full budget, then works
+			var drops = RecordDrops(run);
+			Execute(run);
+
+			Assert.Equal(TaskState.Success, run.Machine.State);
+			Assert.Equal(1, run.Machine.Metrics.Deferrals);
+			Assert.Contains(run.Log, l => l.StartsWith("Deferring " + tag));
+			// Every other stack was finished before the deferred object was placed.
+			int deferredAt = drops.IndexOf(tag);
+			foreach (var other in plan.Where(p => p.StackIndex != stack))
+				Assert.True(drops.IndexOf(other.Object.PoolTag) < deferredAt, $"{other.Object.PoolTag} should be placed before {tag}");
+			// Its own stack still went bottom-up.
+			var own = plan.Where(p => p.StackIndex == stack).Select(p => drops.IndexOf(p.Object.PoolTag)).ToList();
+			Assert.Equal(own.OrderBy(i => i), own);
+		}
+
+		[Fact]
+		public void PermanentlyFailingPickStillEndsTheEpisodeButOtherStacksAreDone()
+		{
+			var task = Task(7);
+			var plan = StackPlanner.Plan(task);
+			string tag = plan[0].Object.PoolTag;
+			var run = Setup(task, sim => sim.GraspMisses[tag] = 99);
+			var drops = RecordDrops(run);
+			Execute(run);
+
+			Assert.Equal(TaskState.Failure, run.Machine.State);
+			Assert.Equal(FailureReason.GraspFailed, run.Machine.Metrics.Failure);
+			Assert.Equal(1, run.Machine.Metrics.Deferrals);
+			Assert.Contains("also after deferring", run.Machine.Metrics.FailureDetail);
+			Assert.Equal(2 * new MotionSettings().MaxPickAttempts, run.Machine.Metrics.PickAttempts - (plan.Count(p => p.StackIndex != plan[0].StackIndex)));
+			Assert.All(plan.Where(p => p.StackIndex != plan[0].StackIndex), p => Assert.Contains(p.Object.PoolTag, drops));
+		}
+
+		[Fact]
+		public void NothingToDeferToWhenOnlyOneStackRemains()
+		{
+			var task = Task(7, colors: 1);
+			string tag = StackPlanner.Plan(task)[0].Object.PoolTag;
+			var run = Execute(Setup(task, sim => sim.GraspMisses[tag] = 99));
+
+			Assert.Equal(TaskState.Failure, run.Machine.State);
+			Assert.Equal(0, run.Machine.Metrics.Deferrals);
+			Assert.DoesNotContain(run.Log, l => l.StartsWith("Deferring"));
+		}
+
+		[Fact]
+		public void DeferringClearsTheNeighbourThatBlockedThePick()
+		{
+			// The point of deferring: a pick that is blocked by another stack's cube (seed 5594's neighbour) can't succeed
+			// now, but can once that stack is built. Here the hover over the target is unreachable for as long as the
+			// neighbour is still where it started; it moves when its own stack gets built.
+			var task = Task(21, colors: 2, maxPerColor: 2, tiers: 2);
+			var plan = StackPlanner.Plan(task);
+			string target = plan[0].Object.PoolTag;
+			string neighbour = plan.First(p => p.StackIndex != plan[0].StackIndex).Object.PoolTag;
+			var run = Setup(task, sim =>
+			{
+				Vector3 neighbourStart = sim.Bodies[neighbour].Position;
+				sim.MoveBlocked = (pose, _) =>
+				{
+					Vector3 t = sim.Bodies[target].Position;
+					bool overTarget = MathF.Sqrt((pose.X - t.X) * (pose.X - t.X) + (pose.Z - t.Z) * (pose.Z - t.Z)) < 0.03f
+						&& pose.Y < 0.2f && sim.Held == null;
+					return overTarget && Vector3.Distance(sim.Bodies[neighbour].Position, neighbourStart) < 0.02f;
+				};
+			});
+			Execute(run);
+
+			Assert.Equal(TaskState.Success, run.Machine.State);
+			Assert.Equal(1, run.Machine.Metrics.Deferrals);
+			Assert.Contains(run.Log, l => l.StartsWith("Deferring " + target));
 		}
 
 		[Fact]

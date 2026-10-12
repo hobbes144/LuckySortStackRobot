@@ -60,6 +60,7 @@ namespace LuckySortStack.Episodes
 		public void SetStep(PlannedStep step)
 		{
 			if (!m_EpisodeOpen) return;
+			if (step.IsBufferMove) return;   // buffer moves have no label; frames keep the label of the pick they unblock
 			if (m_TaskIndex.TryGetValue(step.ToString(), out int index)) Observer.SetCurrentTaskIndex(index);
 			else Log.Warn($"[Record] No Observer label registered for '{step}'");
 		}

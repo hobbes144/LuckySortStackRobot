@@ -291,6 +291,12 @@ Taken from the engine's `RobotSandbox/.../Welcome.hscene` and this project's `Ma
 - `CameraComponent.VerticalFOV` is in **degrees** (AgentDocs). There's no viewport-size API; the overlay measures the aspect by
   projecting three points through `ToScreenSpace` (units undocumented; the `[Overlay] ToScreenSpace:` log line records them).
 - Scene camera: tag `Camera`, `Primary: true`.
+- **Update clocks (docs: scripting/getting-started/entity-lifecycle, 2026-10-12):** `OnUpdate`/`OnLateUpdate` run per fixed
+  simulation step (Robot runner, 50 Hz); a rendered frame can contain 0, 1 or several steps. `OnFreePreUpdate`/`OnFreePostUpdate`
+  run **once per rendered frame** (same signature, `float ts` = frame time) but only with the scene setting
+  "Enable Free Step Update Scripts" (`FreeStepEnabled` in the .hscene; off in this project until turned on).
+  **DebugRenderer is immediate-mode: drawn from a per-step callback it blinks** on frames with no step. Markers, camera
+  blending and `Input.IsKeyPressed` (true for one rendered frame) therefore run from `OnFreePostUpdate`.
 
 ## Other useful APIs
 

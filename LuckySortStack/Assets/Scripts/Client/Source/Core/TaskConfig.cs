@@ -16,6 +16,13 @@ namespace LuckySortStack.Core
 		public bool RandomizePositions = true;
 		public bool RandomizeRotations = true;
 
+		// Cluttered starts (difficulty level 5, docs/CLUTTER_DESIGN.md): some cubes begin piled on others, mixed colours,
+		// wrong order. 0 = off. With 0, the generator makes no extra random draws, so every seed gives exactly the task it
+		// always did (GoldenSeedIsUnchanged).
+		public int PileCount = 0;
+		public int MaxPileHeight = 3;               // cubes per pile, including the bottom one
+		public bool AllowInvertedPiles = false;     // allow a larger cube on a smaller one (topple risk at reset)
+
 		public static int MaxColors => Enum.GetValues(typeof(ObjectColor)).Length;
 		public static int MaxSizeTiers => Enum.GetValues(typeof(ObjectSize)).Length;
 
@@ -31,10 +38,16 @@ namespace LuckySortStack.Core
 			// The pool holds one object per color/size, so a color can't have more objects than tiers.
 			if (MaxObjectsPerColor > NumSizeTiers)
 				throw new ArgumentOutOfRangeException(nameof(MaxObjectsPerColor), "can't exceed NumSizeTiers");
+			if (PileCount < 0 || PileCount > 8)
+				throw new ArgumentOutOfRangeException(nameof(PileCount), "must be 0..8");
+			if (MaxPileHeight < 2 || MaxPileHeight > 4)
+				throw new ArgumentOutOfRangeException(nameof(MaxPileHeight), "must be 2..4");
 		}
 
 		public override string ToString() =>
 			$"colors={NumColors} objects/color={MinObjectsPerColor}-{MaxObjectsPerColor} tiers={NumSizeTiers} " +
-			$"randPos={RandomizePositions} randRot={RandomizeRotations}";
+			$"randPos={RandomizePositions} randRot={RandomizeRotations}" +
+			// Only when on, so the description (and the fingerprint built from it) of every clutter-free task is unchanged.
+			(PileCount > 0 ? $" piles={PileCount} maxHeight={MaxPileHeight}{(AllowInvertedPiles ? " inverted" : "")}" : "");
 	}
 }

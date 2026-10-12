@@ -6,15 +6,26 @@ using LuckySortStack.Core;
 namespace LuckySortStack.Planning
 {
 	// One pick/place: which object, and which slot of which stack it goes to.
+	public enum StepKind
+	{
+		ToStack,    // place the object on its stack (the plan)
+		ToBuffer,   // take it off a pile and set it on a buffer spot (cluttered starts); StackIndex = −1
+	}
+
 	public sealed class PlannedStep
 	{
 		public SortObjectDefinition Object = null!;
-		public StackTarget Stack = null!;
-		public int StackIndex;
+		public StackTarget Stack = null!;     // the object's own stack (for a buffer move: just for display)
+		public int StackIndex;                // −1 for a buffer move
 		public int Order;   // 0 = bottom
+		public StepKind Kind = StepKind.ToStack;
+		public Vector2 BufferSpot;            // world X, Z of the spot, for ToBuffer
 
-		public override string ToString() =>
-			$"Pick {Object.Size} {Object.Color} -> {Stack.Color.ToString().ToUpperInvariant()}[{Order}]";
+		public bool IsBufferMove => Kind == StepKind.ToBuffer;
+
+		public override string ToString() => IsBufferMove
+			? $"Move {Object.Size} {Object.Color} -> buffer"
+			: $"Pick {Object.Size} {Object.Color} -> {Stack.Color.ToString().ToUpperInvariant()}[{Order}]";
 	}
 
 	// Turns task metadata into an ordered action sequence. It answers "what next

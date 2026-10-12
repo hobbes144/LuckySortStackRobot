@@ -94,6 +94,18 @@ namespace LuckySort.Core.Tests
 		}
 
 		[Fact]
+		public void ReplayIsLabelledAndKeyHintsFit()
+		{
+			var (task, sim, machine) = Start(5604);
+			Step(sim, machine, 100);
+			var text = OverlayFormatter.Build(new OverlayInput { EpisodeNumber = 1, Task = task, Machine = machine, Replay = true, KeyHints = true });
+
+			Assert.Equal("LUCKYSORT  replay", text.Title);
+			Assert.EndsWith("C cam  R/F/P replay", text.Body);
+			AssertFits(text);
+		}
+
+		[Fact]
 		public void WorstCaseLinesStillFitWithoutWrapping()
 		{
 			// Longest inputs: 4 colours x 4 sizes, a 10-digit seed, 3-digit episode counts, every state along the way.

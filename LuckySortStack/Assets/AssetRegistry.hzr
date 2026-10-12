@@ -8,6 +8,9 @@ Assets:
   - Handle: 332755221677807708
     FilePath: Scripts/Client/Source/Recording/EpisodeRecord.cs
     Type: ScriptFile
+  - Handle: 534574436636229586
+    FilePath: Scripts/Client/Source/UI/PresentationCamera.cs
+    Type: ScriptFile
   - Handle: 569686487721441914
     FilePath: ContentVault/Robots/Panda/assets/link1.stl
     Type: MeshSource
@@ -50,6 +53,9 @@ Assets:
   - Handle: 2825331150573915332
     FilePath: ContentVault/Robots/Panda/assets/link7_1.obj
     Type: MeshSource
+  - Handle: 2906101996719986443
+    FilePath: Scripts/Client/Source/Presentation/CameraViews.cs
+    Type: ScriptFile
   - Handle: 2935523718648682584
     FilePath: ContentVault/Robots/Panda/assets/link7.stl
     Type: MeshSource
@@ -233,6 +239,9 @@ Assets:
   - Handle: 12013601712572768103
     FilePath: Materials/LuckySort/M_Blue.hmaterial
     Type: Material
+  - Handle: 12111048837675024930
+    FilePath: Scripts/Client/Source/Planning/SupportGraph.cs
+    Type: ScriptFile
   - Handle: 12333907013259953751
     FilePath: ContentVault/Robots/Panda/assets/hand.stl
     Type: MeshSource
@@ -365,6 +374,9 @@ Assets:
   - Handle: 17812213505910635135
     FilePath: ContentVault/Robots/Panda/assets/link6_3.obj
     Type: MeshSource
+  - Handle: 18103269805428406553
+    FilePath: Scripts/Client/Source/Planning/FreeSpace.cs
+    Type: ScriptFile
   - Handle: 18130808224356694619
     FilePath: Meshes/Default/Source/Capsule.gltf
     Type: MeshSource

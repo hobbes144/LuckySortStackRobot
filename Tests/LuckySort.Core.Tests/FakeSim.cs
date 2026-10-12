@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using LuckySortStack.Core;
 using LuckySortStack.Robot;
@@ -61,9 +62,21 @@ namespace LuckySort.Core.Tests
 		{
 			foreach (var o in task.Objects)
 				Bodies[o.PoolTag] = new Body { Position = o.InitialPosition, Yaw = o.InitialYaw, Edge = o.Edge };
-			// Objects spawn slightly above the surface; settle them like physics would.
-			foreach (var b in Bodies.Values)
-				b.Position = new Vector3(b.Position.X, SurfaceY + b.Edge / 2f, b.Position.Z);
+			// Objects spawn slightly above whatever they rest on; settle them like physics would, lowest first so a pile
+			// (cluttered starts) lands cube by cube on the one below.
+			var settled = new List<Body>();
+			foreach (var b in Bodies.Values.OrderBy(b => b.Position.Y).ToList())
+			{
+				float support = SurfaceY;
+				foreach (var s in settled)
+				{
+					float reach = (s.Edge + b.Edge) / 2f;
+					if (MathF.Abs(s.Position.X - b.Position.X) < reach && MathF.Abs(s.Position.Z - b.Position.Z) < reach)
+						support = Math.Max(support, s.Position.Y + s.Edge / 2f);
+				}
+				b.Position = new Vector3(b.Position.X, support + b.Edge / 2f, b.Position.Z);
+				settled.Add(b);
+			}
 			m_Gripper = m_From = m_To = start;
 		}
 
@@ -163,15 +176,16 @@ namespace LuckySort.Core.Tests
 					float half = body.Edge / 2f + FingerHalfWidth;
 					if (MathF.Abs(lx) >= half || MathF.Abs(lz) >= half) continue;
 
-					// Hit: shove the neighbour away from the finger, and the deflected hand nudges the cube under it.
-					Vector3 away = d.Length() > 1e-6f ? Vector3.Normalize(d) : new Vector3(1f, 0f, 0f);
-					body.Position += away * 0.012f;
+					// Hit: the finger shoves the neighbour away from itself (d points neighbour → finger, so −d), and the hand,
+					// deflected the other way (+d), nudges the cube it was descending onto.
+					Vector3 towardFinger = d.Length() > 1e-6f ? Vector3.Normalize(d) : new Vector3(1f, 0f, 0f);
+					body.Position -= towardFinger * 0.012f;
 					Collisions++;
 					foreach (var (otherTag, other) in Bodies)
 					{
 						if (otherTag == tag) continue;
 						Vector3 g = new Vector3(other.Position.X - m_Gripper.X, 0f, other.Position.Z - m_Gripper.Z);
-						if (g.Length() < other.Edge) { other.Position -= away * 0.010f; break; }
+						if (g.Length() < other.Edge) { other.Position += towardFinger * 0.010f; break; }
 					}
 					return;
 				}

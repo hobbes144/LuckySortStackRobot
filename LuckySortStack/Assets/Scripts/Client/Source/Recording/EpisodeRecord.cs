@@ -72,6 +72,8 @@ namespace LuckySortStack.Recording
 		public int PlaceAttempts { get; set; }
 		public int GraspFailures { get; set; }
 		public int PlacementFailures { get; set; }
+		public int Deferrals { get; set; }            // picks moved to the end of the plan after running out of attempts
+		public int BufferMoves { get; set; }          // cubes set on a buffer spot while unstacking (cluttered starts)
 		public float Duration { get; set; }           // sim seconds, robot task only
 	}
 

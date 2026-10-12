@@ -521,6 +521,29 @@ The overlay makes the architecture visible during a demo instead of only the arm
 - **Verdict hold:** in benchmark mode each verdict stays on screen for `ResultHoldSeconds` before the next reset.
 - **Toggles:** `ShowOverlay`, `ShowMarkers`, plus distance/offset/scale sliders (the engine's text units are undocumented).
 
+## 6.4 Presentation camera and replay (Milestone 8)
+
+- **Camera views** (`Presentation/CameraViews`, engine-free and tested; `UI/PresentationCamera` drives the scene camera):
+  Authored, Overview, Front, Top-down, Follow (trails the cube being picked). C cycles. Eye and look-at point are blended
+  separately and the rotation is rebuilt every frame, so transitions never roll. The Euler convention (XYZ radians,
+  R = Rz·Ry·Rx, camera looks down −Z) was checked against the engine docs' example and this scene's camera before use.
+- **Replay** (R current seed, F last failed, P `ReplaySeed`, or the inspector buttons): queued to the next frame, aborts a
+  running episode (its Observer episode is closed as failed), closes a running benchmark with a PARTIAL summary, then runs
+  the seed through the same in-Play reset as benchmark mode. For the demo: show a failure, change a setting, replay it.
+
+## 6.5 Replanning: deferring a failed pick (Stretch D, first step)
+
+Before: an object that ran out of pick attempts ended the episode, at ~2 of 15 stacked. Now (`DeferFailedPicks`):
+- The object and every later step on its stack (they need it underneath) move to the end of the plan, in order.
+  The other stacks are built, then it gets one more full attempt budget. Logged as `Deferring … wait for it`.
+- Only once per object, and only if another stack still has work, since otherwise nothing changes before the retry.
+- Why it helps beyond partial credit: in the 50-seed benchmark every failed pick had a crowding neighbour from another
+  stack. Building that stack first removes the neighbour (`DeferringClearsTheNeighbourThatBlockedThePick`).
+- The plan list stays "the order things are actually done in", so `StepIndex`, the overlay's progress bars and the
+  episode record keep working unchanged. Placement failures and collapsed stacks still end the episode.
+- Next step: cluttered starts make the planner fully online (re-plan from the observed scene after every move);
+  deferral then becomes one case of it. Design: `docs/CLUTTER_DESIGN.md`.
+
 ## 7. How each failure was worked
 
 1. **Read the log, not the video.** Each failure path emits one line with the numbers needed to explain it

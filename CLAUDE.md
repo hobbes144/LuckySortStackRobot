@@ -35,19 +35,24 @@ starting any stage.
   mean 144.5 s ± 18.0, 1.00 picks per object, 0 robot/evaluator disagreements** (`Recordings/20261012_005521/`).
   **50 seeds (5555–5604): 47/50 = 94 %, 95% CI 84–98 %**, failures GraspFailed ×2 (5569, 5604), Unreachable ×1 (5594),
   0 disagreements (`Recordings/20261012_013747/`). Failure analysis: `docs/ENGINEERING_NOTES.md` §6.2
-- [ ] Milestone 8 (plan §24, §20): **overlay + markers written 2026-10-12, awaiting in-editor tuning.** `Presentation/OverlayFormatter`
-  (engine-free, tested) + `UI/DebugOverlay` (TextComponent entities parented to the camera, DebugRenderer markers). Settings under
-  `EpisodeManager` → Overlay. Still open from §24: clean camera, reset/replay control
+- [ ] Milestone 8 (plan §24, §20): overlay + markers **verified in editor** (compact top-left readout). Written 2026-10-12, awaiting
+  editor check: `UI/PresentationCamera` + `Presentation/CameraViews` (Authored/Overview/Front/Top-down/Follow, key C) and replay
+  (R current seed, F last failed, P `ReplaySeed`; also inspector buttons). Settings under `EpisodeManager` → Presentation.
+- [ ] Replanning (plan Stretch D, first step): **written 2026-10-12, awaiting tests/editor**: a pick that runs out of attempts is
+  deferred with its stack (`MotionSettings.DeferFailedPicks`), the other stacks are built first, then one more try.
+- [ ] Cluttered starts (plan §19 level 5): **built 2026-10-12, awaiting tests/editor.** `PileCount` > 0 starts with mixed piles;
+  the state machine unstacks top-down to the cube's own stack or a buffer pad. Status + decisions: `docs/CLUTTER_DESIGN.md`
 
 ### Next session: start here
-1. Commit the fixed `Main.hscene` (Red_Small back at the root) together with the reset fix.
-2. Grasp-axis choice verified: **59/59 on unseen seeds (6000–6028, 7000–7029), 95% CI 94–100 %, 0 collisions** (§6.2).
-   Remember: the editor needs `dotnet build LuckySortStack/Assets/Scripts/Client/LuckySortStack.csproj`; `dotnet test` doesn't rebuild it.
-3. Next feature (agreed direction): a replanning planner (defer a failed pick, respect stack dependencies), then a
-   cluttered-start difficulty level (random wrong-order stacks → unstack + buffer spots). ML policy is a later stretch.
-3. In the editor's ObserverConfig, set `MaxEpisodeDurationSeconds` ≥ 600 (it cuts episodes at 90 s) and
-   enlarge `Camera_Record` (256×256). Check that `meta/tasks.parquet` now holds the 40 pick labels.
-4. `EpisodeManager.Seed` is still −1399230583 (folded to 748253065 for benchmarks); set a non-negative seed.
+1. `dotnet test Tests/LuckySort.Core.Tests` (new today: CameraViewTests, ClutterTests, deferral + overlay tests), then
+   `dotnet build LuckySortStack/Assets/Scripts/Client/LuckySortStack.csproj` (the editor needs this; `dotnet test` doesn't rebuild it).
+2. Turn on Settings → Scene → Scripts → **Enable Free Step Update Scripts** (markers stop blinking; key presses stop being missed).
+   In Play: C cycles camera views, R/F/P replay; check a replay mid-episode aborts cleanly and re-homes the arm.
+3. Clutter: `PileCount = 2`, `ResetSpike` on: do the piles survive the reset (placement check passes)? Then run a few seeds
+   and watch a Tiny cube being picked off a Large one (fingertip-vs-support risk, CLUTTER_DESIGN §4).
+4. Benchmarks: clutter off on fresh seeds (e.g. 8000–8049, compare with 59/59), then `PileCount` 1 and 2 on the same seeds.
+5. Loose ends: ObserverConfig `MaxEpisodeDurationSeconds` ≥ 600 (cuts at 90 s) and `Camera_Record` 256×256; `EpisodeManager.Seed`
+   is still negative.
 
 Engineering decisions and the in-editor failures behind them (demo talking points): `docs/ENGINEERING_NOTES.md`.
 
@@ -90,6 +95,7 @@ Update this checklist as milestones complete.
     - Episode records are written to `LuckySortStack/Recordings/<session>/` (gitignored)
     - The Observer's own dataset goes to `LuckySortStack/DataSessions/session_<time>/` (gitignored)
     - `UI/DebugOverlay.cs` — on-screen overlay (text entities parented to the camera) + DebugRenderer world markers
+    - `UI/PresentationCamera.cs` — demo camera views (C) driving the scene camera
     - `Panda.cs` — Stage 0/1 smoke test (off unless `RunSmokeTest`)
   - `Assets/ContentVault/Robots/Panda/` — MJCF + motion graph
 - `Tools/SceneBuilder/` — generates the workspace (mat, stack markers, object pool, materials)

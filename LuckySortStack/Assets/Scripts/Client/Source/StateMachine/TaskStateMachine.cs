@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using LuckySortStack.Core;
 using LuckySortStack.Planning;
@@ -89,6 +90,18 @@ namespace LuckySortStack.StateMachine
 		public float PlaceToleranceY = 0.010f;
 
 		public int MaxPickAttempts = 3;             // per object
+
+		// Replanning: when an object runs out of pick attempts, don't end the episode yet. Move it, and everything that
+		// stacks on top of it, to the end of the plan, build the other stacks, then come back once with a fresh budget.
+		// Building the other stacks often clears whatever was in the way (in the 50-seed benchmark every failed pick had a
+		// crowding neighbour). Placement failures and collapsed stacks still end the episode.
+		public bool DeferFailedPicks = true;
+
+		// Cluttered starts: before picking a cube, look at what rests on it (SupportGraph, live positions). The topmost
+		// cube on it goes straight to its own stack if it's next there, otherwise to the nearest open spot on the mat
+		// (Planning/FreeSpace, searched against where every cube is now).
+		public bool UnstackPiles = true;
+		public float SetAsideClearance = 0.03f;     // footprint gap to every other cube for a set-aside spot
 		public int MaxPlaceAttempts = 2;            // per object
 		public float EpisodeTimeout = 600f;
 	}
@@ -114,6 +127,7 @@ namespace LuckySortStack.StateMachine
 		public int CurrentPickAttempt => m_PickAttempts;
 		public int MaxPickAttempts => m_Cfg.MaxPickAttempts;
 		public float FingerReach => m_Cfg.FingerReach;
+		public int DeferredCount => m_Deferred.Count;
 
 		public event Action<string>? Log;
 		public event Action<TaskState, TaskState>? StateChanged;
@@ -145,7 +159,9 @@ namespace LuckySortStack.StateMachine
 		private Vector3? m_WantedFingerAxis;        // horizontal axis the fingers should close along for this pick
 		private bool m_AxisCorrected;               // one 90° axis correction per approach
 		private Vector3? m_LastFingerAxis;          // measured finger axis of the previous attempt on this object
+		private readonly HashSet<string> m_Deferred = new HashSet<string>();   // objects already deferred once
 		private readonly List<SortObjectDefinition> m_Objects;
+		private readonly TaskDefinition m_Task;
 
 		private float m_YawSign;
 		private float m_YawOffset;
@@ -167,6 +183,7 @@ namespace LuckySortStack.StateMachine
 			m_YawSign = settings.YawSign >= 0f ? 1f : -1f;
 			m_HoverClearance = settings.PreGraspClearance;
 			m_Objects = new List<SortObjectDefinition>(task.Objects);
+			m_Task = task;
 			for (int i = 0; i < task.Targets.Count; i++) m_Placed[i] = new List<(SortObjectDefinition, Vector3)>();
 		}
 
@@ -254,7 +271,9 @@ namespace LuckySortStack.StateMachine
 					StartMove(new Vector3(m_MoveTarget.X, m_Cfg.TravelHeight, m_MoveTarget.Z), m_CommandedYaw, m_Cfg.DescendSpeed);
 					break;
 				case TaskState.MoveToStack:
-					m_PlaceCentre = StackPlacement.PlaceCentre(step!.Stack, LivePlaced(step.StackIndex), step.Object.Edge, m_Cfg.PlaceGap);
+					m_PlaceCentre = step!.IsBufferMove
+						? new Vector3(step.BufferSpot.X, m_Task.SurfaceY + step.Object.Edge / 2f + m_Cfg.PlaceGap, step.BufferSpot.Y)
+						: StackPlacement.PlaceCentre(step.Stack, LivePlaced(step.StackIndex), step.Object.Edge, m_Cfg.PlaceGap);
 					StartMove(new Vector3(m_PlaceCentre.X, m_Cfg.TravelHeight, m_PlaceCentre.Z), CommandFor(StackYaw(step)), m_Cfg.TravelSpeed);
 					break;
 				case TaskState.Place:
@@ -295,6 +314,7 @@ namespace LuckySortStack.StateMachine
 			}
 			m_PickAttempts = 0;
 			m_PlaceAttempts = 0;
+			if (m_Cfg.UnstackPiles && !ResolveBlocker()) return;   // false = failed (no room to set a cube down)
 			Emit($"Step {m_StepIndex + 1}/{m_Steps.Count}: {CurrentStep}");
 			TransitionTo(TaskState.MoveAboveObject);
 		}
@@ -420,6 +440,8 @@ namespace LuckySortStack.StateMachine
 			{
 				if (other.PoolTag == step.Object.PoolTag) continue;
 				Vector3 o = m_World.GetObjectPosition(other.PoolTag);
+				// A cube entirely below the target's bottom face (its support in a pile) is out of the fingers' way.
+				if (o.Y + other.Edge / 2f <= centre.Y - step.Object.Edge / 2f + 0.005f) continue;
 				float r = other.Edge * 0.5f * MathF.Sqrt(2f);
 				foreach (float side in new[] { 1f, -1f })
 				{
@@ -571,7 +593,7 @@ namespace LuckySortStack.StateMachine
 			if (!settled && m_StateTime < m_Cfg.SettleTimeout) return;
 
 			// Objects already verified on this stack must still be there.
-			foreach (var (obj, recorded) in m_Placed[step.StackIndex])
+			foreach (var (obj, recorded) in step.IsBufferMove ? new List<(SortObjectDefinition, Vector3)>() : m_Placed[step.StackIndex])
 			{
 				float drift = HorizontalDistance(m_World.GetObjectPosition(obj.PoolTag), recorded);
 				if (drift > m_Cfg.PlaceToleranceXZ * 2f)
@@ -586,8 +608,16 @@ namespace LuckySortStack.StateMachine
 			float errY  = Math.Abs(p.Y - restY);
 			if (settled && errXZ <= m_Cfg.PlaceToleranceXZ && errY <= m_Cfg.PlaceToleranceY)
 			{
-				m_Placed[step.StackIndex].Add((step.Object, p));
-				Metrics.ObjectsPlaced++;
+				if (step.IsBufferMove)
+				{
+					Metrics.BufferMoves++;
+					Emit($"Set aside {step.Object.PoolTag} at ({step.BufferSpot.X:F2}, {step.BufferSpot.Y:F2})");
+				}
+				else
+				{
+					m_Placed[step.StackIndex].Add((step.Object, p));
+					Metrics.ObjectsPlaced++;
+				}
 				m_StepIndex++;
 				TransitionTo(TaskState.SelectTarget);
 				return;
@@ -646,11 +676,87 @@ namespace LuckySortStack.StateMachine
 			}
 			else if (m_PickAttempts >= m_Cfg.MaxPickAttempts)
 			{
-				Fail(m_RecoveryReason, $"{tag} not picked after {m_PickAttempts} attempts");
+				if (TryDefer(m_RecoveryReason)) return;
+				Fail(m_RecoveryReason, $"{tag} not picked after {m_PickAttempts} attempts" +
+					(m_Deferred.Contains(tag) ? " (also after deferring it to the end)" : ""));
 				return;
 			}
 			Emit($"Retrying {tag}");
 			TransitionTo(TaskState.MoveAboveObject);
+		}
+
+		// Move the current step and every later step on the same stack (they need it underneath) to the end of the plan,
+		// keeping their order. Only once per object, and only if another stack still has work to do: otherwise nothing
+		// would change before the retry. m_Steps stays "the order things are actually done in", so StepIndex still counts
+		// completed steps.
+		private bool TryDefer(FailureReason reason)
+		{
+			if (!m_Cfg.DeferFailedPicks) return false;
+			PlannedStep step = CurrentStep!;
+			if (step.IsBufferMove) return false;   // a buffer move only exists to unblock the step after it
+			string tag = step.Object.PoolTag;
+			if (m_Deferred.Contains(tag)) return false;
+
+			int stack = step.StackIndex;
+			bool otherWork = false;
+			for (int i = m_StepIndex + 1; i < m_Steps.Count; i++)
+				if (m_Steps[i].StackIndex != stack) { otherWork = true; break; }
+			if (!otherWork) return false;
+
+			var blocked = new List<PlannedStep>();
+			for (int i = m_StepIndex; i < m_Steps.Count; i++)
+				if (m_Steps[i].StackIndex == stack) blocked.Add(m_Steps[i]);
+			m_Steps.RemoveAll(s => blocked.Contains(s));
+			m_Steps.AddRange(blocked);
+
+			m_Deferred.Add(tag);
+			Metrics.Deferrals++;
+			Emit($"Deferring {tag} after {m_PickAttempts} failed attempts ({reason}): building the other stacks first, " +
+				$"{blocked.Count} step(s) on {step.Stack.Color.ToString().ToUpperInvariant()} wait for it");
+			TransitionTo(TaskState.SelectTarget);
+			return true;
+		}
+
+		// Cluttered starts. If something rests on the current step's cube, insert one move for the topmost cube on it, in
+		// front of the current step: straight to its own stack when it's the next cube that stack needs (a productive
+		// move), otherwise to the nearest open spot on the table (FreeSpace). One insertion per call; SelectTarget runs again after every move, so a
+		// 3-high pile unstacks top-down and anything that shifted is simply observed. Returns false if it had to fail.
+		private bool ResolveBlocker()
+		{
+			PlannedStep step = CurrentStep!;
+			if (step.IsBufferMove) return true;
+			SortObjectDefinition? blocker = SupportGraph.Topmost(step.Object, m_Objects, m_World);
+			if (blocker == null) return true;
+
+			int own = m_Steps.FindIndex(m_StepIndex, s => !s.IsBufferMove && s.Object == blocker);
+			bool nextForItsStack = own >= 0 && !m_Steps.Skip(m_StepIndex).Take(own - m_StepIndex)
+				.Any(s => !s.IsBufferMove && s.StackIndex == m_Steps[own].StackIndex);
+			if (nextForItsStack)
+			{
+				PlannedStep move = m_Steps[own];
+				m_Steps.RemoveAt(own);
+				m_Steps.Insert(m_StepIndex, move);
+				Emit($"Unstacking: {blocker.PoolTag} is on {step.Object.PoolTag} and is next for its stack; placing it there first");
+				return true;
+			}
+
+			Vector3 from = m_World.GetObjectPosition(blocker.PoolTag);
+			System.Numerics.Vector2? spot = FreeSpace.Find(blocker, m_Objects, m_World, m_Task.Workspace ?? WorkspaceSpec.Default,
+				m_Task.Targets.Select(t => t.BasePosition), new System.Numerics.Vector2(from.X, from.Z),
+				new FreeSpace.Settings { Clearance = m_Cfg.SetAsideClearance });
+			if (spot == null)
+			{
+				Fail(FailureReason.Unreachable, $"{blocker.PoolTag} is on {step.Object.PoolTag} and there's no open space on the table to set it down");
+				return false;
+			}
+			m_Steps.Insert(m_StepIndex, new PlannedStep
+			{
+				Object = blocker, Stack = step.Stack, StackIndex = -1, Order = -1,
+				Kind = StepKind.ToBuffer, BufferSpot = spot.Value,
+			});
+			Emit($"Unstacking: {blocker.PoolTag} is on {step.Object.PoolTag}; setting it aside at the nearest open spot " +
+				$"({spot.Value.X:F2}, {spot.Value.Y:F2})");
+			return true;
 		}
 
 		private void UpdateReturnHome()
@@ -708,6 +814,7 @@ namespace LuckySortStack.StateMachine
 		// Stack yaw: square to the cube below, or 0 for an empty stack.
 		private float StackYaw(PlannedStep step)
 		{
+			if (step.IsBufferMove) return 0f;
 			var placed = m_Placed[step.StackIndex];
 			return placed.Count == 0 ? 0f : m_World.GetObjectYaw(placed[placed.Count - 1].Obj.PoolTag);
 		}

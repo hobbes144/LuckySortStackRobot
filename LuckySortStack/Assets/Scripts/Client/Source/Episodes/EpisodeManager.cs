@@ -22,7 +22,7 @@ namespace LuckySortStack.Episodes
 	public class EpisodeManager : Entity
 	{
 		[Group("Task")] [Tooltip("Same seed + config = same task.")]
-		public int Seed = 5604;
+		public int Seed = 1234;
 
 		[Group("Task")] [Tooltip("Ignore Seed and draw a fresh one each Play (it is logged so it can be replayed).")]
 		public bool RandomizeSeedOnPlay = false;
@@ -45,6 +45,18 @@ namespace LuckySortStack.Episodes
 
 		[Group("Task")]
 		public bool RandomizeRotations = true;
+
+		[Group("Task")] [ClampValue(0, 4)]
+		[Tooltip("Cluttered starts: piles of mixed cubes at the start (docs/CLUTTER_DESIGN.md). 0 = off, and every seed gives the task it always did.")]
+		public int PileCount = 2;
+
+		[Group("Task")] [ClampValue(2, 4)]
+		[Tooltip("Cubes per pile, including the bottom one.")]
+		public int MaxPileHeight = 3;
+
+		[Group("Task")]
+		[Tooltip("Allow a larger cube on a smaller one in a starting pile (harder; may topple at reset).")]
+		public bool AllowInvertedPiles = false;
 
 		[Group("Scene")]
 		[Tooltip("Move pool objects to the generated layout at Play. Off = log the task only.")]
@@ -130,6 +142,11 @@ namespace LuckySortStack.Episodes
 			"checked against the measured finger axis. Off = whichever axis the yaw alignment lands on.")]
 		public bool ChooseGraspAxis = true;
 
+		[Group("Motion")]
+		[Tooltip("When a cube runs out of pick attempts, build the other stacks first and come back to it once, " +
+			"instead of ending the episode. Off = fail on the first exhausted pick.")]
+		public bool DeferFailedPicks = true;
+
 		[Group("Evaluation")] [Units("m")] [Slider(0.005f, 0.05f)]
 		[Tooltip("Max horizontal offset of any stacked object from its stack centre.")]
 		public float EvalPositionTolerance = 0.015f;
@@ -190,6 +207,19 @@ namespace LuckySortStack.Episodes
 		[Tooltip("Benchmark mode: keep each episode's verdict on screen this long (sim time) before the next reset.")]
 		public float ResultHoldSeconds = 3f;
 
+		[Group("Presentation")]
+		[Dropdown("Authored", "Overview", "Front", "Top-down", "Follow")]
+		[Tooltip("Camera view at the start of Play. Cycle with C (viewport focused) or the 'Next camera view' button.")]
+		public int InitialCameraView = 0;
+
+		[Group("Presentation")]
+		[Tooltip("Seed for 'Replay chosen seed' (P). R replays the current seed, F the last failed one.")]
+		public int ReplaySeed = 0;
+
+		[Group("Presentation")]
+		[Tooltip("Keyboard shortcuts while the viewport has focus: C camera, R replay current, F replay last failed, P replay ReplaySeed.")]
+		public bool KeyboardShortcuts = true;
+
 		public TaskDefinition? CurrentTask { get; private set; }
 		public TaskStateMachine? StateMachine { get; private set; }
 		public StackEvaluator? Evaluator { get; private set; }
@@ -214,6 +244,13 @@ namespace LuckySortStack.Episodes
 		[HideFromEditor] private bool m_PendingStart;
 		[HideFromEditor] private bool m_Started;
 		[HideFromEditor] private DebugOverlay? m_Overlay;
+		[HideFromEditor] private PresentationCamera? m_PresentationCamera;
+		[HideFromEditor] private bool m_FreeStepSeen;
+		[HideFromEditor] private bool m_FreeStepHinted;
+		[HideFromEditor] private float m_FreeStepWait;
+		[HideFromEditor] private int? m_PendingReplay;
+		[HideFromEditor] private bool m_Replaying;
+		[HideFromEditor] private int? m_LastFailedSeed;
 		[HideFromEditor] private readonly DebugOverlaySettings m_OverlaySettings = new DebugOverlaySettings();
 		[HideFromEditor] private string m_Phase = "";
 		[HideFromEditor] private float m_OverlayRefresh;
@@ -267,7 +304,14 @@ namespace LuckySortStack.Episodes
 
 		protected override void OnUpdate(float ts)
 		{
-			if (s_Active != this || m_SequenceDone) return;
+			if (s_Active != this) return;
+			if (m_PendingReplay is int replaySeed && m_Started)
+			{
+				m_PendingReplay = null;
+				StartReplay(replaySeed);
+				return;
+			}
+			if (m_SequenceDone) return;
 
 			if (m_PendingStart && !m_Started)
 			{
@@ -320,6 +364,7 @@ namespace LuckySortStack.Episodes
 			Log.Info("[Result] " + Result);
 			FinishRecording();
 			m_Results.Add(Result);
+			if (!Result.Success) m_LastFailedSeed = CurrentTask!.Seed;
 			bool more = m_EpisodeIndex + 1 < m_Seeds.Count;
 			if (more && m_Overlay != null && ResultHoldSeconds > 0f) m_HoldTimer = ResultHoldSeconds;
 			else NextEpisode();
@@ -327,10 +372,28 @@ namespace LuckySortStack.Episodes
 
 		// ── Overlay (Milestone 8) ───────────────────────────────────────────
 
-		// Text refreshes at 10 Hz; DebugRenderer markers are immediate-mode, so they're drawn every frame here.
+		// Two clocks (docs: scripting/getting-started/entity-lifecycle):
+		//  - OnUpdate/OnLateUpdate run once per fixed simulation step (50 Hz); a rendered frame can contain zero, one or
+		//    several steps. DebugRenderer is immediate-mode, so markers drawn here vanish on frames with no step: they blink.
+		//  - OnFreePostUpdate runs once per rendered frame (scene setting "Enable Free Step Update Scripts", FreeStepEnabled).
+		// So: text (persistent entities) refreshes here at 10 Hz of sim time; markers, camera blending and key presses
+		// (IsKeyPressed is true for one rendered frame only) go in PerFrame, driven by OnFreePostUpdate. If that callback
+		// never runs, PerFrame falls back to this one and the markers blink, with a log line saying how to fix it.
 		protected override void OnLateUpdate(float ts)
 		{
-			if (s_Active != this || m_Overlay == null) return;
+			if (s_Active != this) return;
+			if (!m_FreeStepSeen)
+			{
+				PerFrame(ts);
+				m_FreeStepWait += ts;
+				if (m_FreeStepWait > 2f && !m_FreeStepHinted)
+				{
+					m_FreeStepHinted = true;
+					Log.Warn("[Overlay] OnFreePostUpdate isn't running, so markers are drawn per simulation step and will blink. " +
+						"Turn on Settings → Scene → Scripts → 'Enable Free Step Update Scripts' (FreeStepEnabled in the scene).");
+				}
+			}
+			if (m_Overlay == null) return;
 
 			m_OverlayRefresh -= ts;
 			if (m_OverlayRefresh <= 0f)
@@ -355,16 +418,115 @@ namespace LuckySortStack.Episodes
 					BenchmarkPassed = passed,
 					ElapsedSeconds = StateMachine?.Metrics.Duration ?? 0f,
 					Phase          = m_Phase,
+					Replay         = m_Replaying,
+					KeyHints       = KeyboardShortcuts,
 				}));
 			}
 
-			if (ShowMarkers && CurrentTask != null && StateMachine != null)
+		}
+
+		protected override void OnFreePostUpdate(float ts)
+		{
+			if (s_Active != this) return;
+			m_FreeStepSeen = true;
+			PerFrame(ts);
+		}
+
+		// Once per rendered frame: shortcuts, camera, and the immediate-mode markers.
+		private void PerFrame(float ts)
+		{
+			HandleShortcuts();
+			UpdateCamera(ts);
+			if (m_Overlay == null || !ShowMarkers || CurrentTask == null || StateMachine == null) return;
+			var world = new SceneWorldState(m_Pool);
+			Entity? site = FindEntityByTag(GraspSiteTag);
+			Vector3 g = site?.Transform.WorldTranslation ?? new Vector3(0f, 0f, 0f);
+			m_Overlay.DrawMarkers(CurrentTask, StateMachine, world.GetObjectPosition, world.GetObjectYaw, new Num.Vector3(g.X, g.Y, g.Z));
+		}
+
+		// ── Presentation camera + replay (Milestone 8) ─────────────────────
+
+		private void HandleShortcuts()
+		{
+			if (!KeyboardShortcuts || !m_Started) return;
+			if (Input.IsKeyPressed(KeyCode.C)) NextCameraView();
+			if (Input.IsKeyPressed(KeyCode.R)) ReplayCurrentSeed();
+			if (Input.IsKeyPressed(KeyCode.F)) ReplayLastFailedSeed();
+			if (Input.IsKeyPressed(KeyCode.P)) ReplayChosenSeed();
+		}
+
+		private void UpdateCamera(float ts)
+		{
+			if (m_PresentationCamera == null) return;
+			// Follow view tracks the cube being picked, otherwise the gripper.
+			Num.Vector3 focus;
+			PlannedStep? step = StateMachine != null && !StateMachine.IsFinished ? StateMachine.CurrentStep : null;
+			if (step != null && m_Pool.TryGetValue(step.Object.PoolTag, out Entity? cube) && cube != null)
 			{
-				var world = new SceneWorldState(m_Pool);
-				Entity? site = FindEntityByTag(GraspSiteTag);
-				Vector3 g = site?.Transform.WorldTranslation ?? new Vector3(0f, 0f, 0f);
-				m_Overlay.DrawMarkers(CurrentTask, StateMachine, world.GetObjectPosition, world.GetObjectYaw, new Num.Vector3(g.X, g.Y, g.Z));
+				Vector3 c = cube.Transform.WorldTranslation;
+				focus = new Num.Vector3(c.X, c.Y, c.Z);
 			}
+			else
+			{
+				Vector3 g = FindEntityByTag(GraspSiteTag)?.Transform.WorldTranslation ?? new Vector3(0.5f, 0.1f, 0f);
+				focus = new Num.Vector3(g.X, g.Y, g.Z);
+			}
+			m_PresentationCamera.Update(ts, focus);
+		}
+
+		[Button("Next camera view", RuntimeOnly = true)]
+		internal void NextCameraView() => m_PresentationCamera?.Next();
+
+		[Button("Replay current seed", RuntimeOnly = true)]
+		internal void ReplayCurrentSeed()
+		{
+			if (CurrentTask != null) RequestReplay(CurrentTask.Seed);
+			else if (m_Seeds.Count > 0) RequestReplay(m_Seeds[Math.Max(0, m_EpisodeIndex)]);
+		}
+
+		[Button("Replay last failed seed", RuntimeOnly = true)]
+		internal void ReplayLastFailedSeed()
+		{
+			if (m_LastFailedSeed is int seed) RequestReplay(seed);
+			else Log.Info("[Replay] No failed episode yet this session.");
+		}
+
+		[Button("Replay chosen seed (ReplaySeed)", RuntimeOnly = true)]
+		internal void ReplayChosenSeed() => RequestReplay(ReplaySeed);
+
+		// Queued and handled at the top of the next OnUpdate, so a replay never starts halfway through a state-machine update.
+		private void RequestReplay(int seed)
+		{
+			m_PendingReplay = seed;
+			Log.Info($"[Replay] Requested seed {seed}");
+		}
+
+		// Abort whatever is running and run `seed` as a single episode through the same in-Play reset as benchmark mode.
+		// A benchmark in progress is closed first with a PARTIAL summary, so its numbers aren't mixed with the replay.
+		private void StartReplay(int seed)
+		{
+			if (m_Resetter == null)
+			{
+				Log.Warn("[Replay] Needs the in-Play reset, which isn't calibrated this session (see the [Reset] log). Restart Play instead.");
+				return;
+			}
+
+			bool running = StateMachine != null && Result == null;
+			if (running)
+			{
+				Log.Info($"[Replay] Aborting episode {m_EpisodeIndex + 1} (seed {CurrentTask?.Seed}) at {StateMachine!.State}.");
+				m_Observer?.EndEpisode(success: false, stopRecording: false);
+			}
+			if (MultiEpisode && !m_SequenceDone && m_Results.Count > 0) FinishSequence(partial: true);
+
+			m_Seeds = new List<int> { seed };
+			m_Results.Clear();
+			m_SequenceDone = false;
+			m_Replaying = true;
+			m_HoldTimer = -1f;
+			m_CheckTimer = -1f;
+			Log.Info($"[Replay] ── Seed {seed} ──");
+			BeginEpisode(0, forceReset: true);
 		}
 
 		private void CreateOverlay()
@@ -397,6 +559,9 @@ namespace LuckySortStack.Episodes
 				NumSizeTiers       = NumSizeTiers,
 				RandomizePositions = RandomizePositions,
 				RandomizeRotations = RandomizeRotations,
+				PileCount          = PileCount,
+				MaxPileHeight      = MaxPileHeight,
+				AllowInvertedPiles = AllowInvertedPiles,
 			};
 			try
 			{
@@ -413,7 +578,7 @@ namespace LuckySortStack.Episodes
 
 		// Generate episode i's task and put the pool in its layout with one atomic qpos write (SceneResetter),
 		// for the first episode as well as every later one.
-		private void BeginEpisode(int index)
+		private void BeginEpisode(int index, bool forceReset = false)
 		{
 			m_EpisodeIndex = index;
 			m_Phase = "Laying out cubes";
@@ -434,7 +599,7 @@ namespace LuckySortStack.Episodes
 			{
 				// Episode 1: MuJoCo is already at its initial state; ResetToInitialState here would only clear
 				// the arm's actuator targets, and it slumps. Later episodes: full reset, then send the arm home.
-				bool resetPhysics = index > 0;
+				bool resetPhysics = index > 0 || forceReset;
 				m_Resetter.Reset(layout, resetPhysics);
 				if (resetPhysics) RehomeArm();
 			}
@@ -449,7 +614,7 @@ namespace LuckySortStack.Episodes
 					m_Pool[kv.Key].Transform.WorldRotation = new Vector3(0f, kv.Value.Yaw, 0f);
 				}
 			}
-			m_CheckTimer = index > 0 && m_Resetter != null ? Math.Max(PlacementCheckDelay, RehomeSeconds) : PlacementCheckDelay;
+			m_CheckTimer = (index > 0 || forceReset) && m_Resetter != null ? Math.Max(PlacementCheckDelay, RehomeSeconds) : PlacementCheckDelay;
 		}
 
 		// After ResetToInitialState the motion graph still holds the previous episode's last IK target and the
@@ -479,6 +644,11 @@ namespace LuckySortStack.Episodes
 		{
 			m_Started = true;
 			CreateOverlay();
+			Entity? camera = FindEntityByTag(CameraTag);
+			if (camera != null)
+				m_PresentationCamera = new PresentationCamera(camera, (CameraView)Math.Clamp(InitialCameraView, 0, CameraViews.Count - 1));
+			else
+				Log.Warn($"[Camera] No entity tagged '{CameraTag}'; camera views disabled.");
 			Entity? site = FindEntityByTag(GraspSiteTag);
 			if (site != null) m_HomeGraspPosition = site.Transform.WorldTranslation;
 			MujocoSceneComponent? mujoco = FindEntityByTag(RobotTag)?.GetComponent<MujocoSceneComponent>();
@@ -554,8 +724,8 @@ namespace LuckySortStack.Episodes
 		private void StartTask()
 		{
 			if (CurrentTask == null) return;
-
-			Entity? robot     = FindEntityByTag(RobotTag);
+            //When task starts, Found by using the tags we have set in the editor, we find the robot, grasp site and the controller and gripper of the robot. If any of these are missing, we log an error and return.
+            Entity? robot     = FindEntityByTag(RobotTag);
 			Entity? graspSite = FindEntityByTag(GraspSiteTag);
 			RobotControllerComponent? controller = robot?.GetComponent<RobotControllerComponent>();
 			MujocoActuator? gripper = robot?.GetComponent<MujocoSceneComponent>()?.GetActuator(GripperActuatorName);
@@ -566,7 +736,8 @@ namespace LuckySortStack.Episodes
 				return;
 			}
 
-			var arm = new PandaManipulator(controller, gripper, graspSite, FindEntityByTag(LeftFingerTag), FindEntityByTag(RightFingerTag));
+            //Create new pandascript manipulator with the controller, gripper, grasp site and the left and right finger tags.
+            var arm = new PandaManipulator(controller, gripper, graspSite, FindEntityByTag(LeftFingerTag), FindEntityByTag(RightFingerTag));
 			if (ChooseGraspAxis && arm.FingerAxis == null && FindEntityByTag(LeftFingerTag) == null)
 				Log.Warn($"[Episode] Finger entities '{LeftFingerTag}'/'{RightFingerTag}' not found; grasp-axis check disabled.");
 			var settings = new MotionSettings
@@ -583,6 +754,7 @@ namespace LuckySortStack.Episodes
 				MaxPlaceAttempts  = MaxPlaceAttempts,
 				VaryRetries       = VaryRetries,
 				ChooseGraspAxis   = ChooseGraspAxis,
+				DeferFailedPicks  = DeferFailedPicks,
 			};
 
 			List<PlannedStep> plan = StackPlanner.Plan(CurrentTask);
@@ -691,6 +863,11 @@ namespace LuckySortStack.Episodes
 				return null;
 			}
 			ws.SurfaceY = surface.Transform.WorldTranslation.Y + surface.Transform.Scale.Y * 0.5f;
+			Vector3 mat = surface.Transform.WorldTranslation, matSize = surface.Transform.Scale;
+			ws.MatMinX = mat.X - matSize.X * 0.5f;
+			ws.MatMaxX = mat.X + matSize.X * 0.5f;
+			ws.MatMinZ = mat.Z - matSize.Z * 0.5f;
+			ws.MatMaxZ = mat.Z + matSize.Z * 0.5f;
 
 			foreach (ObjectColor color in Enum.GetValues(typeof(ObjectColor)))
 			{

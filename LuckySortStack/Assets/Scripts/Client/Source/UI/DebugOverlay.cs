@@ -170,6 +170,10 @@ namespace LuckySortStack.UI
 				Square(ToHz(target.BasePosition) + new Vector3(0f, 0.002f, 0f), 0f, active ? 0.09f : 0.075f, c);
 			}
 
+			// Cluttered starts: where the cube being set aside will go (the open spot FreeSpace chose).
+			if (step != null && step.IsBufferMove)
+				Square(new Vector3(step.BufferSpot.X, task.SurfaceY + 0.002f, step.BufferSpot.Y), 0f, step.Object.Edge + 0.02f, Amber);
+
 			if (step == null || machine == null) return;
 
 			string tag = step.Object.PoolTag;

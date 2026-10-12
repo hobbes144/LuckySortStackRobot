@@ -18,6 +18,8 @@ namespace LuckySortStack.Core
 		public int GraspFailures;
 		public int PlacementFailures;
 		public int ObjectsPlaced;
+		public int Deferrals;             // picks moved to the end of the plan after running out of attempts
+		public int BufferMoves;           // cubes taken off a pile and set on a buffer spot (cluttered starts)
 		public float Duration;            // sim seconds
 		public FailureReason Failure = FailureReason.None;
 		public string FailureDetail = "";
@@ -26,6 +28,6 @@ namespace LuckySortStack.Core
 
 		public override string ToString() =>
 			$"placed={ObjectsPlaced} picks={PickAttempts} places={PlaceAttempts} graspFail={GraspFailures} " +
-			$"placeFail={PlacementFailures} duration={Duration:F1}s" + (Succeeded ? "" : $" failure={Failure} ({FailureDetail})");
+			$"placeFail={PlacementFailures} duration={Duration:F1}s" + (Deferrals > 0 ? $" deferred={Deferrals}" : "") + (BufferMoves > 0 ? $" buffered={BufferMoves}" : "") + (Succeeded ? "" : $" failure={Failure} ({FailureDetail})");
 	}
 }

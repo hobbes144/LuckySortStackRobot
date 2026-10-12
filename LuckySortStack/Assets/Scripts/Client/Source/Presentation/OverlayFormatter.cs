@@ -23,6 +23,8 @@ namespace LuckySortStack.Presentation
 		public int BenchmarkDone;               // finished episodes so far in this session
 		public int BenchmarkPassed;
 		public string Phase = "";               // set before the robot starts, e.g. "Laying out cubes"
+		public bool Replay;                     // a single seed replayed on demand (R / F / P)
+		public bool KeyHints;                   // show the keyboard shortcut line
 	}
 
 	public sealed class OverlayText
@@ -48,7 +50,7 @@ namespace LuckySortStack.Presentation
 			TaskStateMachine? machine = input.Machine;
 			var text = new OverlayText
 			{
-				Title = string.Format(Ci, "LUCKYSORT  ep {0}/{1}", input.EpisodeNumber, input.EpisodeCount),
+				Title = input.Replay ? "LUCKYSORT  replay" : string.Format(Ci, "LUCKYSORT  ep {0}/{1}", input.EpisodeNumber, input.EpisodeCount),
 			};
 
 			var sb = new StringBuilder();
@@ -80,6 +82,7 @@ namespace LuckySortStack.Presentation
 				sb.Append('\n');
 				AppendStacks(sb, task, machine, input.Report);
 			}
+			if (input.KeyHints) sb.Append("\nC cam  R/F/P replay\n");
 			text.Body = sb.ToString().TrimEnd('\n');
 			return text;
 		}
@@ -98,9 +101,11 @@ namespace LuckySortStack.Presentation
 			{
 				sb.Append(string.Format(Ci, "step {0}/{1}  try {2}/{3}\n", m.StepIndex + 1, m.Steps.Count, m.CurrentPickAttempt, m.MaxPickAttempts));
 				sb.Append(step.Object.Size).Append(' ').Append(step.Object.Color).Append(" -> ")
-				  .Append(step.Stack.Color.ToString().ToUpperInvariant()).Append('\n');
+				  .Append(step.IsBufferMove ? "buffer" : step.Stack.Color.ToString().ToUpperInvariant()).Append('\n');
 			}
 			sb.Append(string.Format(Ci, "t {0:F1}s\n", input.ElapsedSeconds));
+			if (m.DeferredCount > 0) sb.Append(string.Format(Ci, "deferred {0}\n", m.DeferredCount));
+			if (m.Metrics.BufferMoves > 0) sb.Append(string.Format(Ci, "buffered {0}\n", m.Metrics.BufferMoves));
 		}
 
 		private static void AppendVerdict(StringBuilder sb, EvaluationReport r)

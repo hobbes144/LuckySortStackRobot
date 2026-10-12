@@ -27,6 +27,13 @@ namespace LuckySortStack.Core
 		// Drop height above the surface when spawning, so bodies settle instead of interpenetrating.
 		public float SpawnDropHeight = 0.002f;
 
+		// Extent of the mat (world X, Z). Cubes set aside while unstacking go anywhere free on it (Planning/FreeSpace).
+		// Read from the LS_Workspace entity at runtime.
+		public float MatMinX = 0.25f;
+		public float MatMaxX = 0.75f;
+		public float MatMinZ = -0.45f;
+		public float MatMaxZ = 0.45f;
+
 		// Physical cube edge per size (metres).
 		public Dictionary<ObjectSize, float> EdgeLength = new Dictionary<ObjectSize, float>();
 

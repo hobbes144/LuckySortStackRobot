@@ -7,7 +7,7 @@ SceneSettings:
   StrictUIResponsiveness: true
   StrictUIHz: 60
   AutoDisableResponsiveness: true
-  FreeStepEnabled: false
+  FreeStepEnabled: true
   TimeRunners:
     - ID: 0
       Name: Robot
@@ -163,9 +163,9 @@ SceneSettings:
     RegisteredTasks:
       []
   EditorCamera:
-    Position: [1.24184, 0.692777, -0.82829]
+    Position: [1.33297, 0.746177, -0.915379]
     FocalPoint: [-0.487966, -0.325058, 0.839347]
-    Distance: 2.60945
+    Distance: 2.74635
     Pitch: 0.400695
     Yaw: -2.33768
   RendererSettings:
@@ -1549,7 +1549,7 @@ Entities:
         - ID: 4136725278
           Name: Seed
           Type: Int
-          Value: 7000
+          Value: 147852
         - ID: 4153252280
           Name: RandomizeSeedOnPlay
           Type: Bool
@@ -1578,6 +1578,18 @@ Entities:
           Name: RandomizeRotations
           Type: Bool
           Value: true
+        - ID: 2018087482
+          Name: PileCount
+          Type: Int
+          Value: 2
+        - ID: 2447910576
+          Name: MaxPileHeight
+          Type: Int
+          Value: 3
+        - ID: 608059454
+          Name: AllowInvertedPiles
+          Type: Bool
+          Value: false
         - ID: 2256219274
           Name: ApplyLayoutToScene
           Type: Bool
@@ -1670,6 +1682,10 @@ Entities:
           Name: ChooseGraspAxis
           Type: Bool
           Value: true
+        - ID: 135007082
+          Name: DeferFailedPicks
+          Type: Bool
+          Value: true
         - ID: 516654135
           Name: EvalPositionTolerance
           Type: Float
@@ -1693,7 +1709,7 @@ Entities:
         - ID: 2323937816
           Name: BenchmarkEpisodes
           Type: Int
-          Value: 2
+          Value: 10
         - ID: 2429002128
           Name: ResetSpike
           Type: Bool
@@ -1702,6 +1718,46 @@ Entities:
           Name: DropPlanSteps
           Type: Int
           Value: 0
+        - ID: 1568739678
+          Name: ShowOverlay
+          Type: Bool
+          Value: true
+        - ID: 3020043819
+          Name: ShowMarkers
+          Type: Bool
+          Value: true
+        - ID: 1501603256
+          Name: CameraTag
+          Type: String
+          Value: Camera
+        - ID: 3156694960
+          Name: OverlayLineHeight
+          Type: Float
+          Value: 0.022
+        - ID: 2344888505
+          Name: OverlayMargin
+          Type: Float
+          Value: 0.02
+        - ID: 3053134173
+          Name: OverlayFallbackAspect
+          Type: Float
+          Value: 1.7778
+        - ID: 324818628
+          Name: ResultHoldSeconds
+          Type: Float
+          Value: 3
+        - ID: 1843550157
+          Name: InitialCameraView
+          Type: Int
+          Value: 0
+        - ID: 568795663
+          Name: ReplaySeed
+          Type: Int
+          Value: 0
+        - ID: 2976465771
+          Name: KeyboardShortcuts
+          Type: Bool
+          Value: true
   - Entity: 11699848918789744984
     Domain: Client
     TagComponent:

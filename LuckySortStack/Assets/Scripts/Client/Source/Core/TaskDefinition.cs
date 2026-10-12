@@ -15,6 +15,7 @@ namespace LuckySortStack.Core
 		public float InitialYaw;           // radians about world Y
 		public int TargetStack;            // index into TaskDefinition.Targets
 		public int TargetOrder;            // 0 = bottom of the stack
+		public string? InitialSupport;     // pool tag of the cube it starts on (cluttered starts), null = on the mat
 
 		public string PoolTag => SceneTags.PoolObject(Color, Size);
 	}
@@ -35,6 +36,11 @@ namespace LuckySortStack.Core
 		public List<SortObjectDefinition> Objects = new List<SortObjectDefinition>();
 		public List<StackTarget> Targets = new List<StackTarget>();
 		public bool UsedFallbackLayout;    // true if random placement failed and the grid was used
+
+		// Not part of the fingerprint: the workspace the task was generated for (mat extent, reach, surface height).
+		public float SurfaceY = 0.01f;
+		public WorkspaceSpec? Workspace;
+		public int PileCount => Objects.Count(b => b.InitialSupport == null && Objects.Any(o => o.InitialSupport == b.PoolTag));
 
 		// Stable hash of everything that defines the task; equal seeds+configs must give equal fingerprints.
 		public string Fingerprint()
@@ -66,6 +72,8 @@ namespace LuckySortStack.Core
 					if (includeLayout)
 						sb.Append(string.Format(ci, "{0,3:F0} mm  start ({1:F3}, {2:F3})  yaw {3,5:F1}°",
 							obj.Edge * 1000f, obj.InitialPosition.X, obj.InitialPosition.Z, obj.InitialYaw * 180f / System.MathF.PI));
+					if (includeLayout && obj.InitialSupport != null)
+						sb.Append("  on ").Append(obj.InitialSupport);   // only with clutter, so clutter-free fingerprints are unchanged
 					sb.Append('\n');
 				}
 			}
