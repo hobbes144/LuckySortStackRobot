@@ -110,12 +110,18 @@ Assets:
   - Handle: 5800073677859919557
     FilePath: Scripts/Client/Source/Core/WorkspaceSpec.cs
     Type: ScriptFile
+  - Handle: 5927990986279669609
+    FilePath: Scripts/Client/Source/UI/DebugOverlay.cs
+    Type: ScriptFile
   - Handle: 6394010865883251307
     FilePath: Scripts/Intermediates/Debug/LuckySortStack.AssemblyInfo.cs
     Type: ScriptFile
   - Handle: 6400275880592559554
     FilePath: ContentVault/Robots/Panda/assets/hand_4.obj
     Type: MeshSource
+  - Handle: 6680623729917682398
+    FilePath: Scripts/Client/Source/Presentation/OverlayFormatter.cs
+    Type: ScriptFile
   - Handle: 6968718225181001733
     FilePath: ContentVault/Robots/Panda/assets/link6_14.obj
     Type: MeshSource

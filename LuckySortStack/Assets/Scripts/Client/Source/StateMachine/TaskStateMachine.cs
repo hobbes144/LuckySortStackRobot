@@ -108,6 +108,13 @@ namespace LuckySortStack.StateMachine
 		public float LearnedYawSign => m_YawSign;
 		public float LearnedYawOffset => m_YawOffset;
 
+		// Read-only views for the presentation layer (overlay, markers). Nothing here changes behaviour.
+		public Vector3 MoveTarget => m_MoveTarget;
+		public Vector3? WantedFingerAxis => m_WantedFingerAxis;
+		public int CurrentPickAttempt => m_PickAttempts;
+		public int MaxPickAttempts => m_Cfg.MaxPickAttempts;
+		public float FingerReach => m_Cfg.FingerReach;
+
 		public event Action<string>? Log;
 		public event Action<TaskState, TaskState>? StateChanged;
 
@@ -201,9 +208,9 @@ namespace LuckySortStack.StateMachine
 			}
 		}
 
-		// ── Transitions ─────────────────────────────────────────────────────
-
-		private void TransitionTo(TaskState next)
+        // ── Transitions ─────────────────────────────────────────────────────
+        #region Transitions
+        private void TransitionTo(TaskState next)
 		{
 			TaskState prev = State;
 			State = next;
@@ -275,10 +282,11 @@ namespace LuckySortStack.StateMachine
 					break;
 			}
 		}
+        #endregion
 
-		// ── State updates ───────────────────────────────────────────────────
-
-		private void UpdateSelectTarget()
+        // ── State updates ───────────────────────────────────────────────────
+        #region State Updates
+        private void UpdateSelectTarget()
 		{
 			if (m_StepIndex >= m_Steps.Count)
 			{
@@ -668,9 +676,12 @@ namespace LuckySortStack.StateMachine
 			TransitionTo(TaskState.Failure);
 		}
 
-		// ── Motion helpers ──────────────────────────────────────────────────
+        #endregion
 
-		private enum MoveStatus { Running, Done, TimedOut }
+        // ── Motion helpers ──────────────────────────────────────────────────
+        #region Motion helpers
+
+        private enum MoveStatus { Running, Done, TimedOut }
 
 		private void StartMove(Vector3 target, float yaw, float speed)
 		{
@@ -741,5 +752,7 @@ namespace LuckySortStack.StateMachine
 
 		private static float HorizontalDistance(Vector3 a, Vector3 b) =>
 			MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Z - b.Z) * (a.Z - b.Z));
-	}
+
+        #endregion
+    }
 }

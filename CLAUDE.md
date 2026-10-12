@@ -35,13 +35,14 @@ starting any stage.
   mean 144.5 s ± 18.0, 1.00 picks per object, 0 robot/evaluator disagreements** (`Recordings/20261012_005521/`).
   **50 seeds (5555–5604): 47/50 = 94 %, 95% CI 84–98 %**, failures GraspFailed ×2 (5569, 5604), Unreachable ×1 (5594),
   0 disagreements (`Recordings/20261012_013747/`). Failure analysis: `docs/ENGINEERING_NOTES.md` §6.2
-- [ ] Milestone 8 (see plan §24)
+- [ ] Milestone 8 (plan §24, §20): **overlay + markers written 2026-10-12, awaiting in-editor tuning.** `Presentation/OverlayFormatter`
+  (engine-free, tested) + `UI/DebugOverlay` (TextComponent entities parented to the camera, DebugRenderer markers). Settings under
+  `EpisodeManager` → Overlay. Still open from §24: clean camera, reset/replay control
 
 ### Next session: start here
 1. Commit the fixed `Main.hscene` (Red_Small back at the root) together with the reset fix.
-2. Grasp-axis choice is implemented and verified on the 3 failed seeds (§6.2). Remember: the editor needs
-   `dotnet build LuckySortStack/Assets/Scripts/Client/LuckySortStack.csproj`; `dotnet test` doesn't rebuild it.
-   Re-run 50 seeds 5555–5604 (same seeds, compare with 94 %) and 50 fresh seeds (e.g. 6000–6049, out-of-sample).
+2. Grasp-axis choice verified: **59/59 on unseen seeds (6000–6028, 7000–7029), 95% CI 94–100 %, 0 collisions** (§6.2).
+   Remember: the editor needs `dotnet build LuckySortStack/Assets/Scripts/Client/LuckySortStack.csproj`; `dotnet test` doesn't rebuild it.
 3. Next feature (agreed direction): a replanning planner (defer a failed pick, respect stack dependencies), then a
    cluttered-start difficulty level (random wrong-order stacks → unstack + buffer spots). ML policy is a later stretch.
 3. In the editor's ObserverConfig, set `MaxEpisodeDurationSeconds` ≥ 600 (it cuts episodes at 90 s) and
@@ -77,7 +78,7 @@ Update this checklist as milestones complete.
 - `LuckySortStack/` — the Lucky Engine project (LuckyEngine 2026.1.2, Franka Panda)
   - `Assets/Scenes/Main.hscene` — start scene
   - `Assets/Scripts/Client/Source/` — C# scripts (namespace `LuckySortStack.*`)
-    - `Core/`, `Benchmark/`, `Generation/`, `Planning/`, `StateMachine/`, `Evaluation/`, `Recording/`, `Robot/Abstractions/` — **engine-independent**
+    - `Core/`, `Benchmark/`, `Generation/`, `Planning/`, `StateMachine/`, `Evaluation/`, `Recording/`, `Presentation/`, `Robot/Abstractions/` — **engine-independent**
       (System.Numerics only, no `Hazel`), unit-tested
     - `Robot/PandaManipulator.cs` — `IManipulator` over the motion graph + `actuator8`
     - `Episodes/EpisodeManager.cs` — scene-side: reads workspace, generates task, lays out pool,
@@ -88,6 +89,7 @@ Update this checklist as milestones complete.
     - `Episodes/SceneResetter.cs` — in-Play reset between benchmark episodes (MuJoCo reset + measured qpos writes)
     - Episode records are written to `LuckySortStack/Recordings/<session>/` (gitignored)
     - The Observer's own dataset goes to `LuckySortStack/DataSessions/session_<time>/` (gitignored)
+    - `UI/DebugOverlay.cs` — on-screen overlay (text entities parented to the camera) + DebugRenderer world markers
     - `Panda.cs` — Stage 0/1 smoke test (off unless `RunSmokeTest`)
   - `Assets/ContentVault/Robots/Panda/` — MJCF + motion graph
 - `Tools/SceneBuilder/` — generates the workspace (mat, stack markers, object pool, materials)

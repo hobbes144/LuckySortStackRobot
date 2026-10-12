@@ -94,10 +94,12 @@
     <Compile Include="Source\Generation\TaskGenerator.cs" />
     <Compile Include="Source\Panda.cs" />
     <Compile Include="Source\Planning\StackPlanner.cs" />
+    <Compile Include="Source\Presentation\OverlayFormatter.cs" />
     <Compile Include="Source\Recording\EpisodeRecord.cs" />
     <Compile Include="Source\Recording\EpisodeRecorder.cs" />
     <Compile Include="Source\Robot\Abstractions\Interfaces.cs" />
     <Compile Include="Source\Robot\PandaManipulator.cs" />
     <Compile Include="Source\StateMachine\TaskStateMachine.cs" />
+    <Compile Include="Source\UI\DebugOverlay.cs" />
   </ItemGroup>
 </Project>

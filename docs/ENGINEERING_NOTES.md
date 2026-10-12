@@ -465,6 +465,19 @@ Option 1 would have changed the task behind many recorded seeds, and option 2 is
 - **Varied retries now flip the axis by measurement:** retry 1 requires the axis the previous attempt did *not* use
   (`Grasp axis: retry across the other faces …`), instead of a blind +90° command.
 - **Toggles:** `EpisodeManager` → Motion → `ChooseGraspAxis` (and `VaryRetries`), for a live before/after.
+- **Result on unseen seeds (2026-10-12).** The fixes were designed from failures in seeds 5555–5604, so they were
+  validated on seeds they had never seen:
+
+  | Run | Seeds | Passed | 95% CI | Collisions | Retries | Picks / object |
+  |---|---|---|---|---|---|---|
+  | Before (varied retries off, no axis choice) | 5555–5604 | 47/50 (94 %) | 84–98 % | 6 | 8 | 1.00 (successful eps) |
+  | After | 6000–6028 | 29/29 | | 0 | 1 | 1.00 |
+  | After | 7000–7029 | 30/30 (100 %) | 89–100 % | 0 | 1 | 1.00 |
+  | **After, combined** | **59 unseen seeds** | **59/59** | **94–100 %** | **0** | **2** | 691 objects, 693 picks |
+
+  (The 6000 run stopped at 29 episodes. Robot/evaluator disagreements: 0 in every run.) The grasp axis was constrained on
+  424 picks (~60 % of all picks: neighbours within reach of an open finger are the norm, not the exception) and the
+  measured-axis check turned the grasp 90° on 198 of them. Collisions during descent went from 6 to 0.
 - **Tests:** `FakeSim.FingersHitNeighbours` models the failure (a finger tip inside a neighbour's footprint shoves it
   and deflects the hand into the target). `GraspAxisAvoidsACrowdedNeighbour` passes with no collision;
   `WithoutAxisChoiceTheFingerLandsOnTheNeighbour` reproduces the benchmark failure as a baseline.
@@ -488,6 +501,25 @@ checks every count, the rate, the disagreements and the failed-seed list against
 `OfflineBenchmarkIsReproducible` checks that two runs give identical summaries.
 
 ---
+
+## 6.3 Presentation overlay (Milestone 8)
+
+The overlay makes the architecture visible during a demo instead of only the arm.
+- **Split like everything else:** `Presentation/OverlayFormatter` turns the episode state (seed, fingerprint, state-machine
+  state, step, attempt, per-stack progress, the evaluator's checklist, benchmark tally) into text. It is engine-free and
+  unit-tested (`OverlayTests`). `UI/DebugOverlay` only puts that text on screen and draws markers.
+- **No screen-space UI in Lucky's C# API**, so the HUD is three `TextComponent` entities (title, coloured status, body)
+  parented to the scene camera: a camera child stays fixed on screen. Colours: amber running, green success, red failure.
+- **Anchored top-left by maths, not hand-tuned offsets:** at distance d the visible half-height is d·tan(FOV/2); the
+  aspect is measured through `ToScreenSpace` (no viewport-size API). Text size is a fraction of screen height, so it
+  stays the same on screen when the viewport is resized.
+- **Compact by necessity:** the engine wraps text at ~28 characters with no C# control, so every line is ≤ 24
+  characters, enforced by `OverlayTests.WorstCaseLinesStillFitWithoutWrapping` (10-digit seed, 4×4 task, every state).
+- **World markers** (`DebugRenderer` lines, every frame): stack bases (the active one brighter), the current target cube's
+  outline at its live yaw, the arm's commanded target and a line from the gripper to it, and the **chosen finger axis** with
+  both finger landing points. That last one makes the §6.2 grasp-axis choice visible.
+- **Verdict hold:** in benchmark mode each verdict stays on screen for `ResultHoldSeconds` before the next reset.
+- **Toggles:** `ShowOverlay`, `ShowMarkers`, plus distance/offset/scale sliders (the engine's text units are undocumented).
 
 ## 7. How each failure was worked
 

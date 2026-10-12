@@ -164,10 +164,10 @@ SceneSettings:
       []
   EditorCamera:
     Position: [1.24184, 0.692777, -0.82829]
-    FocalPoint: [-0.113071, -0.256184, 1.18986]
+    FocalPoint: [-0.487966, -0.325058, 0.839347]
     Distance: 2.60945
-    Pitch: 0.372197
-    Yaw: -2.55035
+    Pitch: 0.400695
+    Yaw: -2.33768
   RendererSettings:
     Shadows:
       CascadeNearPlaneOffset: 0
@@ -1549,7 +1549,7 @@ Entities:
         - ID: 4136725278
           Name: Seed
           Type: Int
-          Value: 5555
+          Value: 7000
         - ID: 4153252280
           Name: RandomizeSeedOnPlay
           Type: Bool
@@ -1614,6 +1614,14 @@ Entities:
           Name: GripperActuatorName
           Type: String
           Value: actuator8
+        - ID: 2598418663
+          Name: LeftFingerTag
+          Type: String
+          Value: left_finger
+        - ID: 2745815566
+          Name: RightFingerTag
+          Type: String
+          Value: right_finger
         - ID: 2516126580
           Name: ClosedLoopYaw
           Type: Bool
@@ -1658,6 +1666,10 @@ Entities:
           Name: VaryRetries
           Type: Bool
           Value: true
+        - ID: 1583928600
+          Name: ChooseGraspAxis
+          Type: Bool
+          Value: true
         - ID: 516654135
           Name: EvalPositionTolerance
           Type: Float
@@ -1681,7 +1693,7 @@ Entities:
         - ID: 2323937816
           Name: BenchmarkEpisodes
           Type: Int
-          Value: 10
+          Value: 2
         - ID: 2429002128
           Name: ResetSpike
           Type: Bool

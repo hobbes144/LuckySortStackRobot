@@ -6,9 +6,11 @@ using LuckySortStack.Core;
 using LuckySortStack.Evaluation;
 using LuckySortStack.Generation;
 using LuckySortStack.Planning;
+using LuckySortStack.Presentation;
 using LuckySortStack.Recording;
 using LuckySortStack.Robot;
 using LuckySortStack.StateMachine;
+using LuckySortStack.UI;
 using Num = System.Numerics;
 
 namespace LuckySortStack.Episodes
@@ -163,6 +165,31 @@ namespace LuckySortStack.Episodes
 			"plan and the evaluator should report the missing objects: a demo that the evaluator doesn't trust the planner.")]
 		public int DropPlanSteps = 0;
 
+		[Group("Overlay")] [Tooltip("On-screen presentation overlay: episode, seed, state, current step, stack progress, verdict.")]
+		public bool ShowOverlay = true;
+
+		[Group("Overlay")] [Tooltip("In-world markers: stack bases, current target, arm target, chosen finger axis.")]
+		public bool ShowMarkers = true;
+
+		[Group("Overlay")] [Tooltip("The overlay text is parented to this camera so it stays fixed on screen.")]
+		public string CameraTag = "Camera";
+
+		[Group("Overlay")] [Slider(0.01f, 0.06f)]
+		[Tooltip("Height of one overlay text line as a fraction of the screen height. The panel is anchored top-left.")]
+		public float OverlayLineHeight = 0.022f;
+
+		[Group("Overlay")] [Slider(0f, 0.1f)]
+		[Tooltip("Gap between the panel and the screen's top-left corner, as a fraction of the screen height.")]
+		public float OverlayMargin = 0.02f;
+
+		[Group("Overlay")] [Slider(1f, 4f)]
+		[Tooltip("Viewport width/height, used only if it can't be measured through CameraComponent.ToScreenSpace (see the log).")]
+		public float OverlayFallbackAspect = 1.7778f;
+
+		[Group("Overlay")] [Units("s")] [Slider(0f, 10f)]
+		[Tooltip("Benchmark mode: keep each episode's verdict on screen this long (sim time) before the next reset.")]
+		public float ResultHoldSeconds = 3f;
+
 		public TaskDefinition? CurrentTask { get; private set; }
 		public TaskStateMachine? StateMachine { get; private set; }
 		public StackEvaluator? Evaluator { get; private set; }
@@ -186,6 +213,11 @@ namespace LuckySortStack.Episodes
 		[HideFromEditor] private bool m_SequenceDone;
 		[HideFromEditor] private bool m_PendingStart;
 		[HideFromEditor] private bool m_Started;
+		[HideFromEditor] private DebugOverlay? m_Overlay;
+		[HideFromEditor] private readonly DebugOverlaySettings m_OverlaySettings = new DebugOverlaySettings();
+		[HideFromEditor] private string m_Phase = "";
+		[HideFromEditor] private float m_OverlayRefresh;
+		[HideFromEditor] private float m_HoldTimer = -1f;
 		[HideFromEditor] private Vector3? m_HomeGraspPosition;   // grasp_site at the start of Play, before anything moved
 
 		private bool MultiEpisode => m_Seeds.Count > 1;
@@ -250,6 +282,14 @@ namespace LuckySortStack.Episodes
 				return;
 			}
 
+			// Verdict on screen for a moment before the next episode's reset wipes the scene.
+			if (m_HoldTimer >= 0f)
+			{
+				m_HoldTimer -= ts;
+				if (m_HoldTimer < 0f) NextEpisode();
+				return;
+			}
+
 			if (StateMachine == null) return;
 			StateMachine.Update(ts);
 
@@ -280,7 +320,57 @@ namespace LuckySortStack.Episodes
 			Log.Info("[Result] " + Result);
 			FinishRecording();
 			m_Results.Add(Result);
-			NextEpisode();
+			bool more = m_EpisodeIndex + 1 < m_Seeds.Count;
+			if (more && m_Overlay != null && ResultHoldSeconds > 0f) m_HoldTimer = ResultHoldSeconds;
+			else NextEpisode();
+		}
+
+		// ── Overlay (Milestone 8) ───────────────────────────────────────────
+
+		// Text refreshes at 10 Hz; DebugRenderer markers are immediate-mode, so they're drawn every frame here.
+		protected override void OnLateUpdate(float ts)
+		{
+			if (s_Active != this || m_Overlay == null) return;
+
+			m_OverlayRefresh -= ts;
+			if (m_OverlayRefresh <= 0f)
+			{
+				m_OverlayRefresh = 0.1f;
+				m_OverlaySettings.LineHeight     = OverlayLineHeight;   // live: tweak the sliders during Play
+				m_OverlaySettings.Margin         = OverlayMargin;
+				m_OverlaySettings.FallbackAspect = OverlayFallbackAspect;
+				m_OverlaySettings.DrawMarkers    = ShowMarkers;
+				m_Overlay.Layout();
+				int passed = 0;
+				foreach (EpisodeResult r in m_Results) if (r.Success) passed++;
+				m_Overlay.Show(OverlayFormatter.Build(new OverlayInput
+				{
+					EpisodeNumber  = Math.Max(1, m_EpisodeIndex + 1),
+					EpisodeCount   = Math.Max(1, m_Seeds.Count),
+					Task           = CurrentTask,
+					Machine        = StateMachine,
+					Report         = Evaluator?.Report,
+					Evaluating     = StateMachine != null && StateMachine.IsFinished && (Evaluator == null || !Evaluator.IsComplete),
+					BenchmarkDone  = MultiEpisode ? m_Results.Count : 0,
+					BenchmarkPassed = passed,
+					ElapsedSeconds = StateMachine?.Metrics.Duration ?? 0f,
+					Phase          = m_Phase,
+				}));
+			}
+
+			if (ShowMarkers && CurrentTask != null && StateMachine != null)
+			{
+				var world = new SceneWorldState(m_Pool);
+				Entity? site = FindEntityByTag(GraspSiteTag);
+				Vector3 g = site?.Transform.WorldTranslation ?? new Vector3(0f, 0f, 0f);
+				m_Overlay.DrawMarkers(CurrentTask, StateMachine, world.GetObjectPosition, world.GetObjectYaw, new Num.Vector3(g.X, g.Y, g.Z));
+			}
+		}
+
+		private void CreateOverlay()
+		{
+			if (!ShowOverlay || m_Overlay != null) return;
+			m_Overlay = new DebugOverlay(FindEntityByTag(CameraTag), m_OverlaySettings);
 		}
 
 		protected override void OnDestroy()
@@ -289,6 +379,8 @@ namespace LuckySortStack.Episodes
 			m_Observer?.EndEpisode(success: false, stopRecording: true);
 			// A benchmark cut short still reports what it got through.
 			if (MultiEpisode && !m_SequenceDone && m_Results.Count > 0) FinishSequence(partial: true);
+			m_Overlay?.Destroy();
+			m_Overlay = null;
 			if (s_Active == this) s_Active = null;
 		}
 
@@ -324,6 +416,7 @@ namespace LuckySortStack.Episodes
 		private void BeginEpisode(int index)
 		{
 			m_EpisodeIndex = index;
+			m_Phase = "Laying out cubes";
 			StateMachine = null;
 			Evaluator = null;
 			Result = null;
@@ -385,6 +478,7 @@ namespace LuckySortStack.Episodes
 		private void StartSequence()
 		{
 			m_Started = true;
+			CreateOverlay();
 			Entity? site = FindEntityByTag(GraspSiteTag);
 			if (site != null) m_HomeGraspPosition = site.Transform.WorldTranslation;
 			MujocoSceneComponent? mujoco = FindEntityByTag(RobotTag)?.GetComponent<MujocoSceneComponent>();
@@ -409,6 +503,7 @@ namespace LuckySortStack.Episodes
 
 			if (!placed)
 			{
+				m_Phase = "LAYOUT FAILED (see log)";
 				Log.Error($"[Reset] Layout for episode {m_EpisodeIndex + 1} (seed {m_Seeds[m_EpisodeIndex]}) didn't land; stopping. " +
 					"See the per-object errors above.");
 				FinishSequence(partial: true);

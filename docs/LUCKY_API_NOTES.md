@@ -273,6 +273,25 @@ Taken from the engine's `RobotSandbox/.../Welcome.hscene` and this project's `Ma
 - Materials: `.hmaterial` YAML + an entry in `AssetRegistry.hzr` (`Handle` / `FilePath` / `Type: Material`).
 - Unit cube mesh handle: `4241663774595030205` (`Meshes/Default/Cube.hsmesh`).
 
+## Overlay / text (2026-10-12, Milestone 8)
+- **No screen-space UI in the C# API** (no ImGui, no canvas; `Hazel-ScriptCore.dll` exports only `TextComponent` and
+  `DebugRenderer` for drawing). The overlay is therefore world text parented to the camera entity.
+- Confirmed: **static** `Scene.CreateEntity(name)` / `Scene.DestroyEntity(e)` (Transform + Tag only). The AgentDocs' `Scene.Instance`
+  **does not exist** in 2026.1.2 (CS0117); checked against the DLL's metadata tables. `entity.CreateComponent<T>()`,
+  `TextComponent.Text` (string) / `.Color` (Vector4), `Entity.Parent` get **and set**, `Transform.Translation/Scale` setters,
+  `OnLateUpdate(float)`, `DebugRenderer.DrawLine(p0, p1, Vector4)`, `DrawCircle(centre, rotation, radius, color)`,
+  `DrawQuadBillboard(pos, Vector2 size, color)`, `DebugRenderer.LineWidth` (set only). Sources: AgentDocs `csharp-api/Scene.md`,
+  `Entity.md`; docs.luckyrobots.com API pages; DLL export names.
+- **Undocumented, VERIFY in editor:** text size per unit of entity scale, the text's anchor point, which local axis the text
+  faces, whether a default font is used, glyph coverage (overlay sticks to ASCII), whether DebugRenderer primitives last one
+  frame (assumed: drawn every frame from `OnLateUpdate`), and `DrawCircle`'s rotation convention (unused; squares are drawn with lines).
+- **Measured in editor (2026-10-12 screenshot):** a camera-child TextComponent renders and faces the camera; its anchor is
+  the text's left edge, near the first line's centre; one line is ~0.96 x the entity scale; **long lines wrap at ~28
+  characters** (no C# control over the width), so the overlay keeps every line to 24 (`OverlayFormatter.MaxLineChars`).
+- `CameraComponent.VerticalFOV` is in **degrees** (AgentDocs). There's no viewport-size API; the overlay measures the aspect by
+  projecting three points through `ToScreenSpace` (units undocumented; the `[Overlay] ToScreenSpace:` log line records them).
+- Scene camera: tag `Camera`, `Primary: true`.
+
 ## Other useful APIs
 
 | API | Purpose |
