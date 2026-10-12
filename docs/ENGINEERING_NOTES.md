@@ -262,8 +262,9 @@ whole episode, not just the task layout.
 One Play session runs N episodes on seeds `Seed, Seed+1, …` and ends with a summary.
 
 ```text
-first frame: calibrate resetter on the saved scene positions
-episode k:   ResetToInitialState + qpos writes ─► settle ─► placement check ─► run ─► evaluate ─► record
+first frame: calibrate resetter (bodies, position frame, orientation frame) on the saved scene poses
+episode 1:   qpos writes ─► settle ─► placement check ─► run ─► evaluate ─► record
+episode k>1: ResetToInitialState + qpos writes + re-home arm ─► settle ─► placement check ─► run ─► evaluate ─► record
 end:        BenchmarkSummary ─► log + benchmark_summary.json/.txt
 ```
 
@@ -273,6 +274,7 @@ episode boundary, like a real lab resetting a cell. Nothing about how MuJoCo bod
 how Hazel's frame maps to MuJoCo's, is documented, so the resetter **measures instead of assuming**:
 - Bodies are matched to cubes by position.
 - The frame rotation is either `GetAxisHzToMj()` or its inverse, whichever fits every cube with one translation.
+- The orientation convention `C` (in `q_mj = R ⊗ q_hz ⊗ C`) is solved from every cube's saved pose and must agree across all 16.
 - The fit spread and the qpos-vs-body agreement are logged. If they're off by more than 2 mm, it refuses to reset
   rather than silently mis-placing cubes.
 - Every reset then goes through the same **placement check** as the first layout (position within 5 mm, yaw
@@ -281,18 +283,63 @@ how Hazel's frame maps to MuJoCo's, is documented, so the resetter **measures in
   before committing to a long benchmark.
 - Every layout, including the first, uses the same qpos write. Transform writes are only a logged fallback.
 
-**Status: blocked by a scene bug (root cause found).** The first spike runs found 15 MuJoCo free bodies for
-16 cubes, so calibration refused to run, as designed. MuJoCo names bodies `lucky_body_<entity ID>`, and mapping
-them back to the scene showed that `LS_Obj_Red_Small` had been **re-parented under `LS_Obj_Yellow_Large`** in
-the editor. A child entity compiles into its parent's MuJoCo body, so the cube rode along with Yellow_Large
-and "landed" at the same wrong spot every run. Details: `LUCKY_API_NOTES.md` → "Open issues".
+### 6.1 Bug story: "the layout didn't land" (three stacked bugs, 2026-10-09 → 10-12)
 
-It's a good debugging story for the demo:
-- The self-checks (placement check, free-body matching) caught a scene/physics mismatch on the first run,
-  instead of producing a benchmark full of mysterious "flung cube" failures.
-- Two plausible theories (overlapping transform writes, then a stale model cache) were dropped as soon as the
-  evidence contradicted them.
-- The deciding clue was an exact, repeatable final pose plus a body count, not the visual symptom.
+The in-Play reset failed in the editor on every run. It turned out to be **three separate bugs layered on top of each
+other**. Each fix exposed the next, and each was found by a self-check rather than by watching the viewport.
+**Resolved 2026-10-12:** `ResetSpike` passes on seeds 5555–5557 (`placed by qpos reset — OK` × 3).
+
+**Bug 1: a cube without its own physics body (scene authoring).**
+- *Symptom.* One cube, `LS_Obj_Red_Small`, "landed" 430 mm from its target, at the same pose to the millimetre on every run.
+- *Caught by.* The resetter's body count: **15 MuJoCo free bodies for 16 cubes**, so calibration refused to run, as designed.
+- *Root cause.* In the editor hierarchy, Red_Small had been dragged under `LS_Obj_Yellow_Large`. A child entity compiles
+  into its parent's MuJoCo body, so the cube lost its free joint and rode along rigidly with Yellow_Large.
+- *Found by.* MuJoCo names bodies `lucky_body_<entity ID>`; mapping them back to the scene showed which cube had no free joint.
+- *Dead ends.* Overlapping transform writes "flinging" cubes, then a stale compiled-model cache. Both were dropped as
+  soon as the evidence (exact repeatable pose, body count) contradicted them.
+- *Fix + hardening.* Re-rooted the cube; `ReadWorkspace` now refuses to start if any pool cube has a parent, and names it.
+
+**Bug 2: every cube in the right place, every rotated cube with the wrong yaw (frame convention).**
+- *Symptom.* `Placement check FAILED: 7/16`. All 16 positions were correct.
+- *The clue.* The 7 that passed were **exactly the 7 parked cubes, which are always written with yaw 0**. All 9 task
+  cubes (random yaw) failed. A bug that only shows up at non-zero yaw points at the rotation write, not at physics or position.
+- *Root cause.* Hazel is Y-up and MuJoCo is Z-up. Calibration measured the position frame as a +90° turn about X
+  (`HzToMj = (0.707, 0, 0, 0.707)`, offset 0, spread 0.00 mm). The rotation write assumed a cube's MuJoCo quaternion is
+  simply "yaw about MuJoCo's up", which is only true if the engine converts orientations as `R·q·R⁻¹`. The engine
+  uses a different convention. Yaw 0 writes the identity quaternion, which is right or wrong-but-symmetric under any
+  convention, so the parked cubes hid the bug.
+- *Measured answer.* `C = [w 1, x 0, y 0, z 0]` → **`q_mj = R ⊗ q_hz`**, with all 16 cubes agreeing to 0.00°. The engine
+  converts only the world frame, not the body's local axes. So Hazel yaw θ is `R ⊗ Ry(θ)` in MuJoCo; the old code wrote
+  `Rz(θ) = R ⊗ Ry(θ) ⊗ R⁻¹`, which differs by a 90° tilt about X. On a cube, that tilt turns Hazel's "forward" axis
+  vertical, so the yaw reading is meaningless, while the cube still looks flat (a cube looks the same on any face).
+- *Fix.* Measure the orientation frame instead of assuming it, as the position frame already was. `Calibrate` solves
+  `q_mj = R ⊗ q_hz ⊗ C` for `C` on every cube's saved scene pose (editor rotation vs. the qpos quaternion). It requires
+  all 16 cubes to agree within 2° and refuses to reset otherwise. Writes become `R ⊗ yaw ⊗ C`. The pool cubes rest
+  in arbitrary saved orientations, which makes this measurement well-conditioned.
+- *A misleading test along the way.* An earlier "axis self-test" wrote a 28.6° yaw to one cube and read it straight
+  back: **0.0°**. That looked like a failed write, but the readback came from the same frame, before MuJoCo recomputed
+  body poses, so it would have read 0° whatever was written. It was removed; the new check uses only existing state,
+  so there is nothing to read back stale.
+
+**Bug 3: the arm slumped before doing anything (reset ordering).**
+- *Symptom.* At the start of Play the arm sagged into a bent pose and never moved. It looked like a stacking or IK regression.
+- *Root cause.* No stacking code had run: the placement check (bug 2) stopped the episode before `StartTask`. The arm
+  was disturbed by `ResetToInitialState`, which the new benchmark code called **on the first frame of every Play**, even
+  for episode 1. That reset restores MuJoCo's state, actuator controls included, underneath the motion graph, and with
+  no task running, nothing re-commanded the arm. The last working version (before benchmark mode) never called it.
+- *Fix.* Episode 1 skips the MuJoCo reset, since the state is already initial and only the cube writes are needed.
+  Episodes 2+ do the full reset, then `RehomeArm()` commands the grasp site back to its start-of-Play pose with the
+  gripper open, and the placement check waits `RehomeSeconds` for it.
+
+**Talking points.**
+- **Self-checks turned silent corruption into loud, early failures.** The body count caught bug 1 and the placement
+  check caught bug 2, before either could produce a benchmark full of mysterious "robot failed" episodes.
+- **Look at which cases pass, not just which fail.** "Passes at yaw 0, fails otherwise" pinned bug 2 to one line of maths.
+- **A symptom on the robot doesn't mean a robot bug.** Bug 3 looked like an arm/IK problem; reading the log order
+  showed the task had never started.
+- **Measure undocumented conventions, then verify against data you didn't write.** Position, body mapping and now
+  orientation are all calibrated from the saved scene, and each refuses to run when the measurements disagree.
+- **Check a test before trusting it.** The same-frame readback "proved" a failure that wasn't there.
 
 **The summary (`BenchmarkSummary`, engine-free).**
 - **Success rate with a 95% Wilson interval.** At n = 10, "9/10" is a 60–98% claim, not "90%". The Wilson interval

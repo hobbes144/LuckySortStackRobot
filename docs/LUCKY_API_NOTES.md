@@ -223,8 +223,8 @@ Observer.RegisterTask(int index, string description);  Observer.SetCurrentTaskIn
   more than a Large cube's ~10 mm finger clearance. Fix: `CenterOverObject` hovers 40 mm above the cube,
   measures the horizontal error and cancels it before descending. **Resolved:** random 4-colour × 4-size seeds
   now complete in editor. Details: `ENGINEERING_NOTES.md` §3.2.
-- **OPEN BUG (root cause found, not yet fixed): `LS_Obj_Red_Small` was re-parented under `LS_Obj_Yellow_Large`
-  (2026-10-09). Blocks Milestone 7.**
+- **RESOLVED 2026-10-12: `LS_Obj_Red_Small` was re-parented under `LS_Obj_Yellow_Large` (2026-10-09).** Scene re-rooted;
+  `ReadWorkspace` now rejects parented pool cubes. Write-up of this and the two bugs behind it: `ENGINEERING_NOTES.md` §6.1.
   - **Symptom.** With `ResetSpike` on and seed 748253065 (4 colours × 4 sizes), the first placement check fails
     every time: `LS_Obj_Red_Small` intended (0.546, 0.032, −0.266), actual **(0.918, 0.021, −0.049)**, 430.5 mm
     off, yaw 28.9° off. Same pose to the millimetre on every run, and deleting `Cache/Mujoco/Models/*.mjb` made no
@@ -248,6 +248,19 @@ Observer.RegisterTask(int index, string description);  Observer.SetCurrentTaskIn
     - or regenerate the workspace with `Tools/SceneBuilder` (it replaces all `LS_*` entities).
   - **Hardening to add:** at startup, check that every pool cube is a root entity (`Parent: 0`) and a MuJoCo
     free body (free-body count == pool size), and name the offending cube before laying anything out.
+
+- **RESOLVED 2026-10-12, reset rotations + arm slump (verified: ResetSpike seeds 5555–5557 all OK).**
+  **Measured convention:** `[Reset] Orientation frame: C=[w 1.000, x 0.000, y 0.000, z 0.000] (q_mj = R ⊗ q_hz), worst
+  disagreement across cubes 0.00°`. So a body's MuJoCo quaternion is the Hazel world rotation pre-multiplied by `R`
+  (`GetAxisHzToMj`, +90° about X); the body's local axes are not converted. A Hazel yaw θ is written as `R ⊗ Ry(θ)`,
+  not `Rz(θ)`. after the re-parent fix, seed 5555 placed
+  every cube at the right spot but only 7/16 passed the yaw check: exactly the 7 parked yaw-0 cubes. `HzToMj` is +90° about X,
+  and the old write assumed a cube's MuJoCo quaternion is just "yaw about MuJoCo up", i.e. `q_mj = R·q_hz·R⁻¹`. The engine evidently
+  uses a different convention. `Calibrate` now measures `C` in `q_mj = R ⊗ q_hz ⊗ C` from the saved scene poses (logged as
+  `[Reset] Orientation frame: …`) and writes `R ⊗ yaw ⊗ C`. The old write-then-read axis self-test was removed: it read
+  `GetOrientation` in the same frame as the qpos write, before MuJoCo recomputed body poses, so it always saw 0°.
+  Arm slump: `ResetToInitialState` ran on frame 1 of every Play and cleared the arm's actuator targets. Now it runs only between
+  episodes, followed by `RehomeArm()` (start-of-Play grasp-site pose, gripper open).
 
 ## Scene file format (for `Tools/SceneBuilder`)
 

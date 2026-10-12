@@ -102,7 +102,7 @@ Assets:
     FilePath: Scripts/Client/Source/Episodes/ObserverSession.cs
     Type: ScriptFile
   - Handle: 5347843755337071133
-    FilePath: Scripts/Intermediates/Release/.NETCoreApp,Version=v9.0.AssemblyAttributes.cs
+    FilePath: Scripts/Intermediates/Debug/.NETCoreApp,Version=v9.0.AssemblyAttributes.cs
     Type: ScriptFile
   - Handle: 5712451343787241409
     FilePath: Materials/Default/GroundMaterial.hmaterial
@@ -156,7 +156,7 @@ Assets:
     FilePath: ContentVault/Robots/Panda/assets/link7_5.obj
     Type: MeshSource
   - Handle: 8467754495583405881
-    FilePath: Scripts/Intermediates/Release/LuckySortStack.AssemblyInfo.cs
+    FilePath: Scripts/Intermediates/Debug/LuckySortStack.AssemblyInfo.cs
     Type: ScriptFile
   - Handle: 8692722935246584970
     FilePath: ContentVault/Robots/Panda/assets/link7_2.obj
@@ -171,7 +171,7 @@ Assets:
     FilePath: ContentVault/Robots/Panda/assets/link6_12.obj
     Type: MeshSource
   - Handle: 9220175556686341163
-    FilePath: Scripts/Intermediates/Dist/.NETCoreApp,Version=v9.0.AssemblyAttributes.cs
+    FilePath: Scripts/Intermediates/Debug/.NETCoreApp,Version=v9.0.AssemblyAttributes.cs
     Type: ScriptFile
   - Handle: 9515279380957170208
     FilePath: EnvMap/suburban_soccer_park_2k.hdr
@@ -351,7 +351,7 @@ Assets:
     FilePath: Meshes/Default/Source/Sphere.gltf
     Type: MeshSource
   - Handle: 17551507693136762110
-    FilePath: Scripts/Intermediates/Dist/LuckySortStack.AssemblyInfo.cs
+    FilePath: Scripts/Intermediates/Debug/LuckySortStack.AssemblyInfo.cs
     Type: ScriptFile
   - Handle: 17624969689265160548
     FilePath: ContentVault/Robots/Panda/assets/link0_0.obj

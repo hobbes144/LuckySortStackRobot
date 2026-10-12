@@ -28,25 +28,19 @@ starting any stage.
   (seed -1399230583, 16/16). Needs a Hub sign-in + FFmpeg. Open: the scene's ObserverConfig cuts episodes at
   90 s at 256×256, and per-pick labels must be registered before StartRecording (fixed; re-verify)
 - [ ] Milestone 7: benchmark mode (`BenchmarkEpisodes`, `SceneResetter` in-Play reset, `Benchmark/` summary).
-  Code done and unit-tested offline (722 tests, incl. a 40-seed FakeSim benchmark). **BLOCKED in editor by an open
-  bug, root cause found:** in the working-copy `Main.hscene`, `LS_Obj_Red_Small` was re-parented under
-  `LS_Obj_Yellow_Large` (probably an accidental hierarchy drag). It then compiles into Yellow_Large's MuJoCo
-  body, so there are 15 free bodies for 16 cubes, `SceneResetter` calibration fails, and the cube rides along
-  with Yellow_Large (it "lands" at (0.918, 0.021, −0.049)). Write-up: `docs/LUCKY_API_NOTES.md` → "Open issues"
+  Code done and unit-tested offline (722 tests, incl. a 40-seed FakeSim benchmark). **Reset verified in editor
+  2026-10-12** (`ResetSpike` seeds 5555–5557, all OK) after fixing three bugs: a re-parented cube, the orientation
+  convention of the qpos write, and `ResetToInitialState` on frame 1 slumping the arm. Write-up for the demo:
+  `docs/ENGINEERING_NOTES.md` §6.1. Remaining: a full `BenchmarkEpisodes` ≥ 2 run with the robot (checks `RehomeArm`)
 - [ ] Milestone 8 (see plan §24)
 
 ### Next session: start here
-1. **Fix the scene (editor closed).** Run `git diff LuckySortStack/Assets/Scenes/Main.hscene`. If it shows only the
-   Red_Small re-parent plus the `BenchmarkEpisodes`/`ResetSpike` field values, run
-   `git checkout -- LuckySortStack/Assets/Scenes/Main.hscene`. Otherwise drag Red_Small back to the root in the
-   editor (Position (0.51, 0.032, −0.08), Scale 0.04).
-2. **Harden:** at startup, check that every pool cube is a root entity and a MuJoCo free body (count == pool
-   size), and name the offending cube before laying anything out.
-3. ResetSpike must pass (`Calibrated 16 cubes`, 3 × `placed by qpos reset — OK`), then run
-   `BenchmarkEpisodes = 10` with `Seed` ≥ 0.
-4. In the editor's ObserverConfig, set `MaxEpisodeDurationSeconds` ≥ 600 (it cuts episodes at 90 s) and
+1. Commit the fixed `Main.hscene` (Red_Small back at the root) together with the reset fix.
+2. Run `BenchmarkEpisodes = 10` with `ResetSpike` off and `Seed` ≥ 0. Between episodes, look for
+   `[Reset] Arm sent home …` and check that each task starts from the home pose.
+3. In the editor's ObserverConfig, set `MaxEpisodeDurationSeconds` ≥ 600 (it cuts episodes at 90 s) and
    enlarge `Camera_Record` (256×256). Check that `meta/tasks.parquet` now holds the 40 pick labels.
-5. `EpisodeManager.Seed` is still −1399230583 (folded to 748253065 for benchmarks); set a non-negative seed.
+4. `EpisodeManager.Seed` is still −1399230583 (folded to 748253065 for benchmarks); set a non-negative seed.
 
 Engineering decisions and the in-editor failures behind them (demo talking points): `docs/ENGINEERING_NOTES.md`.
 

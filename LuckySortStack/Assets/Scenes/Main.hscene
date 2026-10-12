@@ -163,11 +163,11 @@ SceneSettings:
     RegisteredTasks:
       []
   EditorCamera:
-    Position: [2.70889, 2.6015, -3.12975]
-    FocalPoint: [2, 2, -2]
-    Distance: 1.4631
-    Pitch: 0.423673
-    Yaw: -2.58122
+    Position: [1.77002, 0.906772, -1.37774]
+    FocalPoint: [-0.515192, 0.0974339, 1.01052]
+    Distance: 3.40308
+    Pitch: 0.240124
+    Yaw: -2.37824
   RendererSettings:
     Shadows:
       CascadeNearPlaneOffset: 0
@@ -830,7 +830,7 @@ Entities:
       Tag: LS_Obj_Yellow_Large
     Parent: 0
     Children:
-      - Handle: 6530565878512278646
+      []
     TransformComponent:
       Position: [0.33, 0.042, -0.35]
       Rotation: [0, 0, 0]
@@ -1009,13 +1009,13 @@ Entities:
     Domain: Client
     TagComponent:
       Tag: LS_Obj_Red_Small
-    Parent: 5093231954624172071
+    Parent: 0
     Children:
       []
     TransformComponent:
-      Position: [3, -0.166667, 4.5]
+      Position: [0.51, 0.032, -0.08]
       Rotation: [0, 0, 0]
-      Scale: [0.666667, 0.666667, 0.666667]
+      Scale: [0.04, 0.04, 0.04]
     StaticMeshComponent:
       AssetID: 4241663774595030205
       MaterialTable:
@@ -1549,7 +1549,7 @@ Entities:
         - ID: 4136725278
           Name: Seed
           Type: Int
-          Value: -1399230583
+          Value: 5555
         - ID: 4153252280
           Name: RandomizeSeedOnPlay
           Type: Bool
@@ -1594,6 +1594,10 @@ Entities:
           Name: PlacementTolerance
           Type: Float
           Value: 0.005
+        - ID: 1146649770
+          Name: RehomeSeconds
+          Type: Float
+          Value: 1.5
         - ID: 2572722687
           Name: RunTask
           Type: Bool

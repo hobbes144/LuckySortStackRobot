@@ -59,6 +59,11 @@ namespace LuckySortStack.Episodes
 		[Group("Scene")] [Units("m")]
 		public float PlacementTolerance = 0.005f;
 
+		[Group("Scene")] [Units("s")] [Slider(0.5f, 5.0f)]
+		[Tooltip("After an in-Play reset (benchmark episodes 2+), time for the arm to return to its start pose " +
+			"before the placement check and the next task.")]
+		public float RehomeSeconds = 1.5f;
+
 		[Group("Robot")] [Tooltip("Run the planned pick/place sequence once the layout is verified.")]
 		public bool RunTask = true;
 
@@ -165,6 +170,7 @@ namespace LuckySortStack.Episodes
 		[HideFromEditor] private bool m_SequenceDone;
 		[HideFromEditor] private bool m_PendingStart;
 		[HideFromEditor] private bool m_Started;
+		[HideFromEditor] private Vector3? m_HomeGraspPosition;   // grasp_site at the start of Play, before anything moved
 
 		private bool MultiEpisode => m_Seeds.Count > 1;
 
@@ -317,7 +323,11 @@ namespace LuckySortStack.Episodes
 
 			if (m_Resetter != null)
 			{
-				m_Resetter.Reset(layout);
+				// Episode 1: MuJoCo is already at its initial state; ResetToInitialState here would only clear
+				// the arm's actuator targets, and it slumps. Later episodes: full reset, then send the arm home.
+				bool resetPhysics = index > 0;
+				m_Resetter.Reset(layout, resetPhysics);
+				if (resetPhysics) RehomeArm();
 			}
 			else
 			{
@@ -330,7 +340,28 @@ namespace LuckySortStack.Episodes
 					m_Pool[kv.Key].Transform.WorldRotation = new Vector3(0f, kv.Value.Yaw, 0f);
 				}
 			}
-			m_CheckTimer = PlacementCheckDelay;
+			m_CheckTimer = index > 0 && m_Resetter != null ? Math.Max(PlacementCheckDelay, RehomeSeconds) : PlacementCheckDelay;
+		}
+
+		// After ResetToInitialState the motion graph still holds the previous episode's last IK target and the
+		// gripper control is zeroed. Command the start-of-Play grasp-site pose and reopen the gripper so the
+		// next episode starts from the same place as the first.
+		private void RehomeArm()
+		{
+			Entity? robot     = FindEntityByTag(RobotTag);
+			Entity? graspSite = FindEntityByTag(GraspSiteTag);
+			RobotControllerComponent? controller = robot?.GetComponent<RobotControllerComponent>();
+			MujocoActuator? gripper = robot?.GetComponent<MujocoSceneComponent>()?.GetActuator(GripperActuatorName);
+			if (controller == null || gripper == null || graspSite == null || m_HomeGraspPosition == null)
+			{
+				Log.Warn("[Reset] Can't send the arm home (robot wiring or start pose missing); the next task starts from wherever it is.");
+				return;
+			}
+			var arm = new PandaManipulator(controller, gripper, graspSite);
+			Vector3 home = m_HomeGraspPosition.Value;
+			arm.SetGripper(1f);
+			arm.MoveTo(new Num.Vector3(home.X, home.Y, home.Z), 0f, RehomeSeconds);
+			Log.Info($"[Reset] Arm sent home to ({home.X:F3}, {home.Y:F3}, {home.Z:F3}) over {RehomeSeconds:F1} s, gripper open.");
 		}
 
 		// First frame of Play: the pool is at its saved scene positions, which never overlap, so this is
@@ -338,6 +369,8 @@ namespace LuckySortStack.Episodes
 		private void StartSequence()
 		{
 			m_Started = true;
+			Entity? site = FindEntityByTag(GraspSiteTag);
+			if (site != null) m_HomeGraspPosition = site.Transform.WorldTranslation;
 			MujocoSceneComponent? mujoco = FindEntityByTag(RobotTag)?.GetComponent<MujocoSceneComponent>();
 			var resetter = mujoco != null ? new SceneResetter(mujoco) : null;
 			if (resetter != null && resetter.Calibrate(m_Pool))
@@ -564,6 +597,13 @@ namespace LuckySortStack.Episodes
 						Log.Error($"[Episode] Pool object '{tag}' not found.");
 						return null;
 					}
+					if (obj.Parent != null)
+					{
+						Log.Error($"[Episode] Pool object '{tag}' is parented under '{obj.Parent.Tag}' (entity {obj.Parent.ID}); " +
+							"a child entity compiles into its parent's MuJoCo body and loses its own free joint. " +
+							"Drag it back to the scene root before running.");
+						return null;
+					}
 					m_Pool[tag] = obj;
 					ws.EdgeLength[size] = obj.Transform.Scale.Y;   // physical size is the source of truth
 				}
@@ -608,9 +648,13 @@ namespace LuckySortStack.Episodes
 				if (horizontal <= PlacementTolerance && yawErr <= yawTolerance) { ok++; continue; }
 				string before = m_EpisodeIndex > 0 && m_Resetter != null && m_Resetter.LastPreResetPositions.TryGetValue(kv.Key.Tag, out Vector3 b)
 					? $", before the reset it was at ({b.X:F3}, {b.Y:F3}, {b.Z:F3})" : "";
+				float intendedDeg = kv.Value.Yaw * 180f / Mathf.PI;
+				float actualDeg = world.GetObjectYaw(kv.Key.Tag) * 180f / Mathf.PI;
+				string rawQpos = m_Resetter != null && m_Resetter.TryGetRawQposYawDegrees(kv.Key.Tag, out float rawDeg)
+					? $", raw qpos yaw {rawDeg:F1}°" : "";
 				Log.Warn($"[Episode] {kv.Key.Tag}: intended ({kv.Value.Position.X:F3}, {kv.Value.Position.Y:F3}, {kv.Value.Position.Z:F3}) " +
 					$"actual ({actual.X:F3}, {actual.Y:F3}, {actual.Z:F3}) off by {horizontal * 1000f:F1} mm, " +
-					$"yaw off by {yawErr * 180f / Mathf.PI:F1}°{before}");
+					$"yaw off by {yawErr * 180f / Mathf.PI:F1}° (intended yaw {intendedDeg:F1}°, actual yaw {actualDeg:F1}°{rawQpos}){before}");
 			}
 
 			if (ok == m_Intended.Count)
