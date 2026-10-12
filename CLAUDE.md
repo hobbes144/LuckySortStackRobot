@@ -27,17 +27,17 @@ starting any stage.
   verdict) + JSON episode record and `episodes.jsonl` in `LuckySortStack/Recordings/`. Verified in editor
   (seed -1399230583, 16/16). Needs a Hub sign-in + FFmpeg. Open: the scene's ObserverConfig cuts episodes at
   90 s at 256×256, and per-pick labels must be registered before StartRecording (fixed; re-verify)
-- [ ] Milestone 7: benchmark mode (`BenchmarkEpisodes`, `SceneResetter` in-Play reset, `Benchmark/` summary).
+- [x] Milestone 7: benchmark mode (`BenchmarkEpisodes`, `SceneResetter` in-Play reset, `Benchmark/` summary).
   Code done and unit-tested offline (722 tests, incl. a 40-seed FakeSim benchmark). **Reset verified in editor
-  2026-10-12** (`ResetSpike` seeds 5555–5557, all OK) after fixing three bugs: a re-parented cube, the orientation
+  2026-10-12** (`ResetSpike` seeds 5555–5564, 10/10 OK) after fixing three bugs: a re-parented cube, the orientation
   convention of the qpos write, and `ResetToInitialState` on frame 1 slumping the arm. Write-up for the demo:
-  `docs/ENGINEERING_NOTES.md` §6.1. Remaining: a full `BenchmarkEpisodes` ≥ 2 run with the robot (checks `RehomeArm`)
+  `docs/ENGINEERING_NOTES.md` §6.1. **First full benchmark 2026-10-12: seeds 5555–5564, 10/10 PASS (95% CI 72–100 %),
+  mean 144.5 s ± 18.0, 1.00 picks per object, 0 robot/evaluator disagreements** (`Recordings/20261012_005521/`)
 - [ ] Milestone 8 (see plan §24)
 
 ### Next session: start here
 1. Commit the fixed `Main.hscene` (Red_Small back at the root) together with the reset fix.
-2. Run `BenchmarkEpisodes = 10` with `ResetSpike` off and `Seed` ≥ 0. Between episodes, look for
-   `[Reset] Arm sent home …` and check that each task starts from the home pose.
+2. Optional: a longer benchmark (e.g. 30–50 seeds) to narrow the 72–100 % confidence interval for the demo.
 3. In the editor's ObserverConfig, set `MaxEpisodeDurationSeconds` ≥ 600 (it cuts episodes at 90 s) and
    enlarge `Camera_Record` (256×256). Check that `meta/tasks.parquet` now holds the 40 pick labels.
 4. `EpisodeManager.Seed` is still −1399230583 (folded to 748253065 for benchmarks); set a non-negative seed.

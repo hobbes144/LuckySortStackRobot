@@ -287,7 +287,7 @@ how Hazel's frame maps to MuJoCo's, is documented, so the resetter **measures in
 
 The in-Play reset failed in the editor on every run. It turned out to be **three separate bugs layered on top of each
 other**. Each fix exposed the next, and each was found by a self-check rather than by watching the viewport.
-**Resolved 2026-10-12:** `ResetSpike` passes on seeds 5555–5557 (`placed by qpos reset — OK` × 3).
+**Resolved 2026-10-12:** `ResetSpike` passes on seeds 5555–5557 and then 5555–5564 (10/10 layouts `placed by qpos reset — OK`).
 
 **Bug 1: a cube without its own physics body (scene authoring).**
 - *Symptom.* One cube, `LS_Obj_Red_Small`, "landed" 430 mm from its target, at the same pose to the millimetre on every run.
@@ -330,6 +330,20 @@ other**. Each fix exposed the next, and each was found by a self-check rather th
 - *Fix.* Episode 1 skips the MuJoCo reset, since the state is already initial and only the cube writes are needed.
   Episodes 2+ do the full reset, then `RehomeArm()` commands the grasp site back to its start-of-Play pose with the
   gripper open, and the placement check waits `RehomeSeconds` for it.
+
+**Outcome: first full benchmark (2026-10-12).** With all three fixes in, `BenchmarkEpisodes = 10` on seeds
+5555–5564 (4 colours × 4 sizes, random positions and yaws) ran unattended in one Play session:
+
+```text
+Success rate 100 % (10/10), 95% CI 72 %–100 %
+Categories: Success 10
+Duration (all):     mean 144.5s ± 18.0  (min 112.8, median 141.0, max 175.4, n=10)
+Picks per object (successful episodes) 1.00, objects correctly stacked 100.0 %, robot/evaluator disagreements 0
+```
+
+Every episode after the first went through `ResetToInitialState`, the measured qpos writes and `RehomeArm()`, and no
+object needed a retry. Per-episode records and the summary are in `Recordings/20261012_005521/`. Note the honest reading:
+10/10 supports "at least ~72 %" with 95% confidence, not "100 % reliable"; a longer run narrows that.
 
 **Talking points.**
 - **Self-checks turned silent corruption into loud, early failures.** The body count caught bug 1 and the placement
