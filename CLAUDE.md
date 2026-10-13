@@ -35,23 +35,29 @@ starting any stage.
   mean 144.5 s ± 18.0, 1.00 picks per object, 0 robot/evaluator disagreements** (`Recordings/20261012_005521/`).
   **50 seeds (5555–5604): 47/50 = 94 %, 95% CI 84–98 %**, failures GraspFailed ×2 (5569, 5604), Unreachable ×1 (5594),
   0 disagreements (`Recordings/20261012_013747/`). Failure analysis: `docs/ENGINEERING_NOTES.md` §6.2
-- [ ] Milestone 8 (plan §24, §20): overlay + markers **verified in editor** (compact top-left readout). Written 2026-10-12, awaiting
-  editor check: `UI/PresentationCamera` + `Presentation/CameraViews` (Authored/Overview/Front/Top-down/Follow, key C) and replay
-  (R current seed, F last failed, P `ReplaySeed`; also inspector buttons). Settings under `EpisodeManager` → Presentation.
-- [ ] Replanning (plan Stretch D, first step): **written 2026-10-12, awaiting tests/editor**: a pick that runs out of attempts is
-  deferred with its stack (`MotionSettings.DeferFailedPicks`), the other stacks are built first, then one more try.
-- [ ] Cluttered starts (plan §19 level 5): **built 2026-10-12, awaiting tests/editor.** `PileCount` > 0 starts with mixed piles;
-  the state machine unstacks top-down to the cube's own stack or a buffer pad. Status + decisions: `docs/CLUTTER_DESIGN.md`
+- [ ] Milestone 8 (plan §24, §20): overlay + markers **verified in editor** (compact top-left readout). Camera views
+  (`UI/PresentationCamera` + `Presentation/CameraViews`: Authored/Overview/Front/Top-down/Follow, key C) and replay (R current
+  seed, F last failed, P `ReplaySeed`, plus inspector buttons) **build and pass tests, not yet checked in Play**.
+  Markers/camera/keys now run per rendered frame from `OnFreePostUpdate` (needs the scene setting below), no more blinking.
+- [ ] Replanning (plan Stretch D, first step): **tested (753/753)**, not yet benchmarked in editor. A pick that runs out of
+  attempts is deferred with its stack (`DeferFailedPicks`), the other stacks are built first, then one more try. Notes §6.5.
+- [ ] Cluttered starts (plan §19 level 5): generator + unstacking **tested (753/753)**; ResetSpike 50/50 OK (confirm it ran with
+  `PileCount` > 0). Cubes taken off a pile go to their stack if next, else to the **nearest open spot on the table**
+  (`Planning/FreeSpace`, replaced the buffer pads; written after the 753-test run, so re-run tests). `docs/CLUTTER_DESIGN.md`
+- [ ] **Milestone 9: Vision** (plan Stretch A): the robot finds cubes and free space with its own camera. **Planned, not started:
+  `docs/VISION_PLAN.md`** (phases V0–V5, 3 decisions to make first). Enabled by the undocumented C# capture API
+  `CaptureBridge.TryCaptureCameraRgba` (LUCKY_API_NOTES §11).
 
 ### Next session: start here
-1. `dotnet test Tests/LuckySort.Core.Tests` (new today: CameraViewTests, ClutterTests, deferral + overlay tests), then
+1. `dotnet test Tests/LuckySort.Core.Tests` (FreeSpace tests + dense worst-case clutter are new since the last run), then
    `dotnet build LuckySortStack/Assets/Scripts/Client/LuckySortStack.csproj` (the editor needs this; `dotnet test` doesn't rebuild it).
-2. Turn on Settings → Scene → Scripts → **Enable Free Step Update Scripts** (markers stop blinking; key presses stop being missed).
-   In Play: C cycles camera views, R/F/P replay; check a replay mid-episode aborts cleanly and re-homes the arm.
-3. Clutter: `PileCount = 2`, `ResetSpike` on: do the piles survive the reset (placement check passes)? Then run a few seeds
-   and watch a Tiny cube being picked off a Large one (fingertip-vs-support risk, CLUTTER_DESIGN §4).
-4. Benchmarks: clutter off on fresh seeds (e.g. 8000–8049, compare with 59/59), then `PileCount` 1 and 2 on the same seeds.
-5. Loose ends: ObserverConfig `MaxEpisodeDurationSeconds` ≥ 600 (cuts at 90 s) and `Camera_Record` 256×256; `EpisodeManager.Seed`
+2. In the editor: Settings → Scene → Scripts → **Enable Free Step Update Scripts** (markers stop blinking, key presses stop
+   being missed). Without it the log warns after 2 s. Then in Play: C cycles camera views, R/F/P replay.
+3. Clutter in editor: `PileCount = 2` with `ResetSpike` (piles survive the reset?), then real episodes: watch a Tiny cube
+   picked off a Large one (fingertip vs support, CLUTTER_DESIGN §4) and the amber set-aside spot.
+4. Benchmarks on fresh seeds (e.g. 8000–8049): clutter off (compare with 59/59), then `PileCount` 1 and 2 on the same seeds.
+5. **Next feature: Milestone 9 Vision**: read `docs/VISION_PLAN.md`, answer its §4 decisions, start with V0 (capture spike).
+6. Loose ends: ObserverConfig `MaxEpisodeDurationSeconds` ≥ 600 (cuts at 90 s) and `Camera_Record` 256×256; `EpisodeManager.Seed`
    is still negative.
 
 Engineering decisions and the in-editor failures behind them (demo talking points): `docs/ENGINEERING_NOTES.md`.

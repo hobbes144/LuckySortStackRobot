@@ -171,7 +171,13 @@ Observer.RegisterTask(int index, string description);  Observer.SetCurrentTaskIn
     compile-time `[CallerFilePath]` of a script, which the build embeds unmapped. Walk up from it to the `.hproj`.
 
 ### 11. Camera observations
-- `CameraComponent`: projection settings, `Primary`, `ToScreenSpace`, `GetRayDirection`. **No C# pixel-readback API found.**
+- `CameraComponent`: projection settings, `Primary`, `ToScreenSpace`, `GetRayDirection`, `SetOrthographic(size, near, far)`.
+- **C# pixel readback DOES exist (found 2026-10-12, undocumented):** `Hazel.Net.Grpc.Capture.CaptureBridge` is public, with
+  `public static bool TryCaptureCameraRgba(ulong, uint, uint, out byte[], out uint, out uint)` and
+  `TryCaptureViewportRgba(uint, uint, out byte[], out uint, out uint)` (decoded from the DLL's metadata signature blobs; the
+  ulong is presumably the camera entity ID, then requested width/height; outs = RGBA bytes + actual width/height). This is
+  what the gRPC `CameraService` uses. RGBA only: no depth API found. VERIFY in editor (cost per call, pixel row order,
+  whether it renders a camera that isn't primary).
 - Frames are available via Observer capture and the gRPC `CameraService` (`GetCameraFrame`, `StreamCamera`, `ListCameras`).
   For now: camera = visualization + recorded observation only (matches plan §14).
 

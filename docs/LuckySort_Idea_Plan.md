@@ -1522,6 +1522,9 @@ At this point the project is already a strong interview demonstration.
 
 Replace metadata-based object identification with camera perception.
 
+**Build plan: `docs/VISION_PLAN.md` (Milestone 9, planned 2026-10-12).** C# can capture camera RGBA through the
+undocumented `CaptureBridge.TryCaptureCameraRgba` (see LUCKY_API_NOTES §11); no depth.
+
 Pipeline:
 
 ``` text
