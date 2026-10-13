@@ -172,12 +172,16 @@ Observer.RegisterTask(int index, string description);  Observer.SetCurrentTaskIn
 
 ### 11. Camera observations
 - `CameraComponent`: projection settings, `Primary`, `ToScreenSpace`, `GetRayDirection`, `SetOrthographic(size, near, far)`.
-- **C# pixel readback DOES exist (found 2026-10-12, undocumented):** `Hazel.Net.Grpc.Capture.CaptureBridge` is public, with
-  `public static bool TryCaptureCameraRgba(ulong, uint, uint, out byte[], out uint, out uint)` and
-  `TryCaptureViewportRgba(uint, uint, out byte[], out uint, out uint)` (decoded from the DLL's metadata signature blobs; the
-  ulong is presumably the camera entity ID, then requested width/height; outs = RGBA bytes + actual width/height). This is
-  what the gRPC `CameraService` uses. RGBA only: no depth API found. VERIFY in editor (cost per call, pixel row order,
-  whether it renders a camera that isn't primary).
+- **C# pixel readback DOES exist (found 2026-10-12, undocumented):** `Hazel.Net.Grpc.Capture.CaptureBridge` is public:
+  `public static bool TryCaptureCameraRgba(ulong entityId, uint width, uint height, out byte[] rgba, out uint outWidth, out uint outHeight)`
+  and `TryCaptureViewportRgba(uint width, uint height, out byte[] rgba, out uint outWidth, out uint outHeight)`.
+  **Confirmed 2026-10-12 from the 2026.1.2 DLL metadata** (parameter names and `[Out]` flags read with
+  System.Reflection.Metadata): the ulong is the **entity ID** (`Entity.ID` is a public `UInt64` field). The project's
+  `Vision/VisionSensor.cs` compiles against it. This is what the gRPC `CameraService` uses. **RGBA only: no depth API**
+  (searched every type and native binding). Also present, unused: `GrpcStepCapture_QueueCamera / Submit / WaitAndGetCount /
+  GetFrameDataPtr` natives (a batched per-step capture path behind the gRPC server). VERIFY in editor with the V0 spike
+  (`docs/VISION_PLAN.md` §7): cost per call, pixel row order, whether a non-primary camera renders, whether the capture
+  honours the requested size/aspect.
 - Frames are available via Observer capture and the gRPC `CameraService` (`GetCameraFrame`, `StreamCamera`, `ListCameras`).
   For now: camera = visualization + recorded observation only (matches plan §14).
 

@@ -15,6 +15,7 @@
     <Compile Include="..\..\LuckySortStack\Assets\Scripts\Client\Source\Recording\**\*.cs" Link="Source\Recording\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\LuckySortStack\Assets\Scripts\Client\Source\Robot\Abstractions\**\*.cs" Link="Source\Robot\Abstractions\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\LuckySortStack\Assets\Scripts\Client\Source\Presentation\**\*.cs" Link="Source\Presentation\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\LuckySortStack\Assets\Scripts\Client\Source\Perception\**\*.cs" Link="Source\Perception\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />

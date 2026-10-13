@@ -93,6 +93,14 @@
     <Compile Include="Source\Evaluation\StackEvaluator.cs" />
     <Compile Include="Source\Generation\TaskGenerator.cs" />
     <Compile Include="Source\Panda.cs" />
+    <Compile Include="Source\Perception\CaptureCheck.cs" />
+    <Compile Include="Source\Perception\ColorClassifier.cs" />
+    <Compile Include="Source\Perception\CubeDetector.cs" />
+    <Compile Include="Source\Perception\PinholeCamera.cs" />
+    <Compile Include="Source\Perception\RgbaImage.cs" />
+    <Compile Include="Source\Perception\SyntheticRenderer.cs" />
+    <Compile Include="Source\Perception\VisionPalette.cs" />
+    <Compile Include="Source\Perception\VisionRig.cs" />
     <Compile Include="Source\Planning\FreeSpace.cs" />
     <Compile Include="Source\Planning\StackPlanner.cs" />
     <Compile Include="Source\Planning\SupportGraph.cs" />
@@ -105,5 +113,7 @@
     <Compile Include="Source\StateMachine\TaskStateMachine.cs" />
     <Compile Include="Source\UI\DebugOverlay.cs" />
     <Compile Include="Source\UI\PresentationCamera.cs" />
+    <Compile Include="Source\Vision\VisionSensor.cs" />
+    <Compile Include="Source\Vision\VisionSpike.cs" />
   </ItemGroup>
 </Project>

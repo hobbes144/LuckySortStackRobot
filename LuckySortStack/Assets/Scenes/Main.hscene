@@ -2170,6 +2170,27 @@ Entities:
       Scale: [1, 1, 1]
     MujocoBodyComponent:
       ID: 6
+  - Entity: 14203867301357041651
+    Domain: Client
+    TagComponent:
+      Tag: LS_Camera_Vision
+    Parent: 0
+    Children:
+      []
+    TransformComponent:
+      Position: [0.5, 2, 0]
+      Rotation: [-1.570796, 0, 0]
+      Scale: [1, 1, 1]
+    CameraComponent:
+      Camera:
+        ProjectionType: 0
+        PerspectiveFOV: 27.5
+        PerspectiveNear: 0.1
+        PerspectiveFar: 1000
+        OrthographicSize: 10
+        OrthographicNear: -1
+        OrthographicFar: 1
+      Primary: false
   - Entity: 14312184842398426784
     Domain: Client
     TagComponent:

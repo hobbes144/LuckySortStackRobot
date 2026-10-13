@@ -44,19 +44,25 @@ starting any stage.
 - [ ] Cluttered starts (plan §19 level 5): generator + unstacking **tested (753/753)**; ResetSpike 50/50 OK (confirm it ran with
   `PileCount` > 0). Cubes taken off a pile go to their stack if next, else to the **nearest open spot on the table**
   (`Planning/FreeSpace`, replaced the buffer pads; written after the 753-test run, so re-run tests). `docs/CLUTTER_DESIGN.md`
-- [ ] **Milestone 9: Vision** (plan Stretch A): the robot finds cubes and free space with its own camera. **Planned, not started:
-  `docs/VISION_PLAN.md`** (phases V0–V5, 3 decisions to make first). Enabled by the undocumented C# capture API
-  `CaptureBridge.TryCaptureCameraRgba` (LUCKY_API_NOTES §11).
+- [ ] **Milestone 9: Vision** (plan Stretch A): the robot finds cubes and free space with its own camera. `docs/VISION_PLAN.md`.
+  Decisions: **perspective** top-down camera, vision-mode piles only smaller-on-larger of another colour, 512×900 (~1 mm/px).
+  **V1 done offline:** `Perception/` (camera model, synthetic renderer, colour classifier + calibration, silhouette-fit
+  `CubeDetector`, `CaptureCheck`), 782/782 tests; synthetic frames: mean 0.10 mm, max 0.64 mm, max 1.4° (gate 3 mm / 3°).
+  **V0 coded, not yet run in editor:** `Vision/VisionSensor` + `VisionSpike`, `EpisodeManager` → Vision → `VisionCaptureSpike`,
+  `LS_Camera_Vision` from SceneBuilder. Engine project compiled against the real 2026.1.2 DLL (capture API confirmed in metadata).
 
 ### Next session: start here
-1. `dotnet test Tests/LuckySort.Core.Tests` (FreeSpace tests + dense worst-case clutter are new since the last run), then
+0. **Vision V0 in the editor** (VISION_PLAN §7 "Running V0"): close the editor, run SceneBuilder (adds `LS_Camera_Vision`), build,
+   Play with `VisionCaptureSpike` on and `PileCount` 0. Read `[Vision]` lines + `Recordings/<time>_vision/annotated.png`; record
+   row order, capture ms and camera-model result in LUCKY_API_NOTES §11. Then V2 (design note in VISION_PLAN §7).
+1. `dotnet test Tests/LuckySort.Core.Tests` (782 expected; the 2026-10-12 run of 756 pre-vision tests passed), then
    `dotnet build LuckySortStack/Assets/Scripts/Client/LuckySortStack.csproj` (the editor needs this; `dotnet test` doesn't rebuild it).
 2. In the editor: Settings → Scene → Scripts → **Enable Free Step Update Scripts** (markers stop blinking, key presses stop
    being missed). Without it the log warns after 2 s. Then in Play: C cycles camera views, R/F/P replay.
 3. Clutter in editor: `PileCount = 2` with `ResetSpike` (piles survive the reset?), then real episodes: watch a Tiny cube
    picked off a Large one (fingertip vs support, CLUTTER_DESIGN §4) and the amber set-aside spot.
 4. Benchmarks on fresh seeds (e.g. 8000–8049): clutter off (compare with 59/59), then `PileCount` 1 and 2 on the same seeds.
-5. **Next feature: Milestone 9 Vision**: read `docs/VISION_PLAN.md`, answer its §4 decisions, start with V0 (capture spike).
+5. Milestone 9 Vision: V0 run (step 0), then V2 `PerceivedWorldState`, V3 capture policy, V4 vision-safe piles in the generator.
 6. Loose ends: ObserverConfig `MaxEpisodeDurationSeconds` ≥ 600 (cuts at 90 s) and `Camera_Record` 256×256; `EpisodeManager.Seed`
    is still negative.
 
@@ -89,7 +95,7 @@ Update this checklist as milestones complete.
 - `LuckySortStack/` — the Lucky Engine project (LuckyEngine 2026.1.2, Franka Panda)
   - `Assets/Scenes/Main.hscene` — start scene
   - `Assets/Scripts/Client/Source/` — C# scripts (namespace `LuckySortStack.*`)
-    - `Core/`, `Benchmark/`, `Generation/`, `Planning/`, `StateMachine/`, `Evaluation/`, `Recording/`, `Presentation/`, `Robot/Abstractions/` — **engine-independent**
+    - `Core/`, `Benchmark/`, `Generation/`, `Planning/`, `StateMachine/`, `Evaluation/`, `Recording/`, `Presentation/`, `Perception/`, `Robot/Abstractions/` — **engine-independent**
       (System.Numerics only, no `Hazel`), unit-tested
     - `Robot/PandaManipulator.cs` — `IManipulator` over the motion graph + `actuator8`
     - `Episodes/EpisodeManager.cs` — scene-side: reads workspace, generates task, lays out pool,
@@ -102,6 +108,7 @@ Update this checklist as milestones complete.
     - The Observer's own dataset goes to `LuckySortStack/DataSessions/session_<time>/` (gitignored)
     - `UI/DebugOverlay.cs` — on-screen overlay (text entities parented to the camera) + DebugRenderer world markers
     - `UI/PresentationCamera.cs` — demo camera views (C) driving the scene camera
+    - `Vision/VisionSensor.cs` — the robot camera (`LS_Camera_Vision`) via `CaptureBridge.TryCaptureCameraRgba`; `Vision/VisionSpike.cs` — V0 check
     - `Panda.cs` — Stage 0/1 smoke test (off unless `RunSmokeTest`)
   - `Assets/ContentVault/Robots/Panda/` — MJCF + motion graph
 - `Tools/SceneBuilder/` — generates the workspace (mat, stack markers, object pool, materials)

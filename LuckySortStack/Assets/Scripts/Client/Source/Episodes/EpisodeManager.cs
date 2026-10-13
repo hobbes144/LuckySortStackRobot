@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Hazel;
 using LuckySortStack.Benchmark;
 using LuckySortStack.Core;
@@ -11,6 +12,8 @@ using LuckySortStack.Recording;
 using LuckySortStack.Robot;
 using LuckySortStack.StateMachine;
 using LuckySortStack.UI;
+using LuckySortStack.Perception;
+using LuckySortStack.Vision;
 using Num = System.Numerics;
 
 namespace LuckySortStack.Episodes
@@ -48,7 +51,7 @@ namespace LuckySortStack.Episodes
 
 		[Group("Task")] [ClampValue(0, 4)]
 		[Tooltip("Cluttered starts: piles of mixed cubes at the start (docs/CLUTTER_DESIGN.md). 0 = off, and every seed gives the task it always did.")]
-		public int PileCount = 2;
+		public int PileCount = 0;
 
 		[Group("Task")] [ClampValue(2, 4)]
 		[Tooltip("Cubes per pile, including the bottom one.")]
@@ -220,6 +223,20 @@ namespace LuckySortStack.Episodes
 		[Tooltip("Keyboard shortcuts while the viewport has focus: C camera, R replay current, F replay last failed, P replay ReplaySeed.")]
 		public bool KeyboardShortcuts = true;
 
+		[Group("Vision")]
+		[Tooltip("Milestone 9 / V0: once the first layout has settled, capture the vision camera, check row order and camera model " +
+			"against the true poses, calibrate colours and detect the cubes. Output in <recordings>/<time>_vision/. The task starts after.")]
+		public bool VisionCaptureSpike = true;
+
+		[Group("Vision")]
+		public string VisionCameraTag = VisionRig.CameraTag;
+
+		[Group("Vision")] [ClampValue(64, 2048)]
+		public int VisionWidth = VisionRig.Width;
+
+		[Group("Vision")] [ClampValue(64, 2048)]
+		public int VisionHeight = VisionRig.Height;
+
 		public TaskDefinition? CurrentTask { get; private set; }
 		public TaskStateMachine? StateMachine { get; private set; }
 		public StackEvaluator? Evaluator { get; private set; }
@@ -256,6 +273,9 @@ namespace LuckySortStack.Episodes
 		[HideFromEditor] private float m_OverlayRefresh;
 		[HideFromEditor] private float m_HoldTimer = -1f;
 		[HideFromEditor] private Vector3? m_HomeGraspPosition;   // grasp_site at the start of Play, before anything moved
+		[HideFromEditor] private VisionSpike? m_VisionSpike;
+		[HideFromEditor] private bool m_VisionSpikeBlocksTask;   // started from the layout: the task waits for it
+		[HideFromEditor] private bool m_VisionSpikeRan;
 
 		private bool MultiEpisode => m_Seeds.Count > 1;
 
@@ -310,6 +330,22 @@ namespace LuckySortStack.Episodes
 				m_PendingReplay = null;
 				StartReplay(replaySeed);
 				return;
+			}
+			if (m_VisionSpike != null)
+			{
+				m_VisionSpike.Update();
+				if (!m_VisionSpike.Done) { if (m_VisionSpikeBlocksTask) return; }
+				else
+				{
+					m_VisionSpike = null;
+					if (m_VisionSpikeBlocksTask)
+					{
+						m_VisionSpikeBlocksTask = false;
+						m_Phase = "";
+						if (RunTask) StartTask();
+						return;
+					}
+				}
 			}
 			if (m_SequenceDone) return;
 
@@ -689,7 +725,40 @@ namespace LuckySortStack.Episodes
 				return;
 			}
 
+			if (VisionCaptureSpike && !m_VisionSpikeRan && StartVisionSpike(blockTask: true)) return;
+
 			if (RunTask) StartTask();
+		}
+
+		// ── Vision (Milestone 9) ────────────────────────────────────────────
+
+		[Button("Vision: capture + check now", RuntimeOnly = true)]
+		internal void CaptureVisionNow()
+		{
+			if (m_VisionSpike != null) { Log.Info("[Vision] A capture spike is already running."); return; }
+			StartVisionSpike(blockTask: false);
+		}
+
+		private bool StartVisionSpike(bool blockTask)
+		{
+			if (m_Workspace == null || CurrentTask == null) { Log.Warn("[Vision] No task laid out yet."); return false; }
+			VisionSensor? sensor = VisionSensor.Find(this, VisionCameraTag, VisionWidth, VisionHeight);
+			if (sensor == null)
+			{
+				Log.Error($"[Vision] No entity tagged '{VisionCameraTag}'. Re-run Tools/SceneBuilder (editor closed) to add it.");
+				return false;
+			}
+			m_VisionSpikeRan = true;
+			TaskDefinition task = CurrentTask;
+			var world = new SceneWorldState(m_Pool);
+			m_VisionSpike = new VisionSpike(sensor, () => task.Objects.Select(o => new TruthCube
+			{
+				Color = o.Color, Size = o.Size, Edge = o.Edge,
+				Centre = world.GetObjectPosition(o.PoolTag), Yaw = world.GetObjectYaw(o.PoolTag),
+			}).ToList(), m_Workspace, ResolveRecordingRoot());
+			m_VisionSpikeBlocksTask = blockTask;
+			if (blockTask) m_Phase = "Vision capture spike";
+			return true;
 		}
 
 		private void NextEpisode()

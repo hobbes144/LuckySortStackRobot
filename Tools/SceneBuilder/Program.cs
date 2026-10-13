@@ -84,6 +84,15 @@ for (int c = 0; c < layout.Colors.Length; c++)
 	}
 }
 
+// ── Vision camera (Milestone 9) ─────────────────────────────────────────────
+// Straight down over the mat, 2 m up, not primary. Keep in sync with Perception/VisionRig (the tests' copy); at runtime
+// the camera model is read from this entity, so moving it in the editor is fine.
+var visionCamera = new CameraDef(
+	Tag: "LS_Camera_Vision",
+	Position: new Vec3(layout.WorkspaceCenterX, 2.0f, layout.WorkspaceCenterZ),
+	RotationRadians: new Vec3(-MathF.PI / 2f, 0f, 0f),
+	VerticalFovDegrees: 27.5f);
+
 // ── Write material files ────────────────────────────────────────────────────
 string matDir = Path.Combine(assetsDir, "Materials", "LuckySort");
 Directory.CreateDirectory(matDir);
@@ -98,12 +107,13 @@ registry.Save(registryPath);
 
 // ── Scene ───────────────────────────────────────────────────────────────────
 var scene = SceneFile.Load(scenePath);
-int removed = scene.RemoveEntities(id => entities.Any(e => e.Id == id) || scene.TagOf(id)?.StartsWith("LS_") == true);
+int removed = scene.RemoveEntities(id => entities.Any(e => e.Id == id) || id == visionCamera.Id || scene.TagOf(id)?.StartsWith("LS_") == true);
 foreach (var e in entities)
 	scene.AddEntity(e.Id, e.ToYaml());
+scene.AddEntity(visionCamera.Id, visionCamera.ToYaml());
 scene.Save(scenePath);
 
-Console.WriteLine($"Materials: {materials.Count}, entities written: {entities.Count} (replaced {removed}).");
+Console.WriteLine($"Materials: {materials.Count}, entities written: {entities.Count + 1} incl. {visionCamera.Tag} (replaced {removed}).");
 return 0;
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -233,6 +243,39 @@ record EntityDef(string Tag, Vec3 Position, Vec3 Scale, MaterialDef Material, Co
 			sb.Append("      JointId: -1\n");
 		}
 		return sb.ToString().TrimEnd('\n');
+	}
+}
+
+// A camera entity (CameraComponent fields as the editor writes them). Primary stays false: the scene camera keeps the view.
+record CameraDef(string Tag, Vec3 Position, Vec3 RotationRadians, float VerticalFovDegrees)
+{
+	public ulong Id => Ids.From("entity/" + Tag);
+
+	public string ToYaml()
+	{
+		var sb = new StringBuilder();
+		sb.Append($"  - Entity: {Id}\n");
+		sb.Append("    Domain: Client\n");
+		sb.Append("    TagComponent:\n");
+		sb.Append($"      Tag: {Tag}\n");
+		sb.Append("    Parent: 0\n");
+		sb.Append("    Children:\n");
+		sb.Append("      []\n");
+		sb.Append("    TransformComponent:\n");
+		sb.Append($"      Position: {Position}\n");
+		sb.Append($"      Rotation: {RotationRadians}\n");
+		sb.Append("      Scale: [1, 1, 1]\n");
+		sb.Append("    CameraComponent:\n");
+		sb.Append("      Camera:\n");
+		sb.Append("        ProjectionType: 0\n");
+		sb.Append($"        PerspectiveFOV: {VerticalFovDegrees.ToString("0.###", CultureInfo.InvariantCulture)}\n");
+		sb.Append("        PerspectiveNear: 0.1\n");
+		sb.Append("        PerspectiveFar: 1000\n");
+		sb.Append("        OrthographicSize: 10\n");
+		sb.Append("        OrthographicNear: -1\n");
+		sb.Append("        OrthographicFar: 1\n");
+		sb.Append("      Primary: false");
+		return sb.ToString();
 	}
 }
 

@@ -544,6 +544,36 @@ Before: an object that ran out of pick attempts ended the episode, at ~2 of 15 s
 - Next step: cluttered starts make the planner fully online (re-plan from the observed scene after every move);
   deferral then becomes one case of it. Design: `docs/CLUTTER_DESIGN.md`.
 
+## 6.6 Vision: the robot finds the cubes itself (Milestone 9, in progress)
+
+Until now the planner read cube poses from the engine. Milestone 9 replaces that with the robot's own camera
+(`docs/VISION_PLAN.md`). Built engine-free first, like everything else:
+
+```text
+LS_Camera_Vision ──CaptureBridge──► RGBA ──ColorClassifier──► labels ──CubeDetector──► colour, size, pose per cube
+  (perspective, 2 m up)                     (HSV-cone nearest        (silhouette model fit)        │
+                                             reference, calibrated)                                ▼
+                                                                         planner inputs (V2); evaluator stays on ground truth
+```
+
+- **Perspective forced a model, not a centroid.** Off-axis the camera sees cube sides too: up to ~15 mm at the mat's corners,
+  so a blob centroid would be ~7 mm off, more than the ~10 mm finger budget can absorb. The detector fits the projected
+  silhouette of a cube of known edge at a known height (convex hull of 8 projected corners) by pattern search over
+  x, z, yaw, scoring misfit with prefix sums per image row (sub-pixel along rows). Mean error on synthetic frames: 0.1 mm.
+- **Identity is free, size is a fit.** One cube per colour × size, so (colour, size) names the pool tag. Each size the colour
+  can still be is tried; the best fit wins. Piles: every size assignment (largest at the bottom) is tried, and pixels of
+  the cubes above are "don't care" for the cube below, so a lower cube seen only as a ring still fits.
+- **No depth from above, so the task adapts honestly:** equal-size or same-colour piles are invisible to a top-down RGB
+  camera, so vision mode only piles smaller cubes on larger ones of another colour (decision recorded in the plan).
+- **The test double is a renderer.** `SyntheticRenderer` ray-casts the same scene through the same camera model. Tests
+  render generated tasks and check every cube comes back within 3 mm / 3°; the editor spike renders the *true* layout and
+  compares it with the real frame, which settles the unknowns (row order, FOV/aspect handling) by measurement, the same
+  approach as the yaw convention (§3.1) and the reset frames (§6.1).
+- **Verified the API before writing against it.** The capture call is undocumented. Its signature (parameter names,
+  `out` flags, `Entity.ID` type) was read from the engine DLL's metadata, and the engine project compiled against it,
+  before any editor time was spent.
+- **The evaluator keeps ground truth (rule 4).** Perception errors show up as honest failures in the benchmark, not hidden ones.
+
 ## 7. How each failure was worked
 
 1. **Read the log, not the video.** Each failure path emits one line with the numbers needed to explain it
@@ -568,4 +598,6 @@ Before: an object that ran out of pick attempts ended the episode, at ~2 of 15 s
 | Observer episode boundaries + per-pick labels | `Episodes/ObserverSession.cs` |
 | In-Play scene reset (benchmark) | `Episodes/SceneResetter.cs` |
 | Benchmark seeds + summary maths (engine-free) | `Benchmark/BenchmarkSummary.cs` |
+| Vision: camera model, renderer, classifier, detector (engine-free) | `Perception/` |
+| Vision: engine camera capture + V0 spike | `Vision/VisionSensor.cs`, `Vision/VisionSpike.cs` |
 | Offline arm + physics stand-in | `Tests/LuckySort.Core.Tests/FakeSim.cs` |

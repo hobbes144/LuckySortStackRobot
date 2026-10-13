@@ -29,12 +29,18 @@ Assets:
   - Handle: 1139411396420191164
     FilePath: ContentVault/Robots/Panda/assets/link7_4.obj
     Type: MeshSource
+  - Handle: 1219061578701409811
+    FilePath: Scripts/Client/Source/Vision/VisionSpike.cs
+    Type: ScriptFile
   - Handle: 1497230069059563363
     FilePath: ContentVault/Robots/Panda/assets/link7_6.obj
     Type: MeshSource
   - Handle: 1562725133617977236
     FilePath: ContentVault/Robots/Panda/assets/link6_4.obj
     Type: MeshSource
+  - Handle: 1740514357135735545
+    FilePath: Scripts/Client/Source/Perception/ColorClassifier.cs
+    Type: ScriptFile
   - Handle: 2037309039716682535
     FilePath: ContentVault/Robots/Panda/assets/link0_9.obj
     Type: MeshSource
@@ -71,6 +77,9 @@ Assets:
   - Handle: 3202154662737914925
     FilePath: ContentVault/Robots/Panda/assets/link6_13.obj
     Type: MeshSource
+  - Handle: 3426425421207328130
+    FilePath: Scripts/Client/Source/Vision/VisionSensor.cs
+    Type: ScriptFile
   - Handle: 3461503808142084498
     FilePath: ContentVault/Robots/Panda/assets/link6_15.obj
     Type: MeshSource
@@ -80,12 +89,18 @@ Assets:
   - Handle: 3881008803322376566
     FilePath: ContentVault/Robots/Panda/assets/finger_1.obj
     Type: MeshSource
+  - Handle: 4022544517355354148
+    FilePath: Scripts/Client/Source/Perception/VisionRig.cs
+    Type: ScriptFile
   - Handle: 4054362971200105164
     FilePath: Scripts/Client/Source/Episodes/EpisodeManager.cs
     Type: ScriptFile
   - Handle: 4241663774595030205
     FilePath: Meshes/Default/Cube.hsmesh
     Type: StaticMesh
+  - Handle: 4532495675723792331
+    FilePath: Scripts/Client/Source/Perception/SyntheticRenderer.cs
+    Type: ScriptFile
   - Handle: 4544288926626347977
     FilePath: ContentVault/Robots/Panda/assets/link6_7.obj
     Type: MeshSource
@@ -128,6 +143,9 @@ Assets:
   - Handle: 6680623729917682398
     FilePath: Scripts/Client/Source/Presentation/OverlayFormatter.cs
     Type: ScriptFile
+  - Handle: 6793583898377988438
+    FilePath: Scripts/Client/Source/Perception/CubeDetector.cs
+    Type: ScriptFile
   - Handle: 6968718225181001733
     FilePath: ContentVault/Robots/Panda/assets/link6_14.obj
     Type: MeshSource
@@ -152,6 +170,9 @@ Assets:
   - Handle: 7662388003140614263
     FilePath: ContentVault/Robots/Panda/assets/hand_2.obj
     Type: MeshSource
+  - Handle: 7814404389659301992
+    FilePath: Scripts/Client/Source/Perception/CaptureCheck.cs
+    Type: ScriptFile
   - Handle: 7977014066937306277
     FilePath: Scripts/Client/Source/Core/TaskConfig.cs
     Type: ScriptFile
@@ -191,6 +212,9 @@ Assets:
   - Handle: 9551131427689869954
     FilePath: ContentVault/Robots/Panda/assets/link2.stl
     Type: MeshSource
+  - Handle: 9633174546160218192
+    FilePath: Scripts/Client/Source/Perception/VisionPalette.cs
+    Type: ScriptFile
   - Handle: 9660294030299042613
     FilePath: Materials/LuckySort/M_Red_Marker.hmaterial
     Type: Material
@@ -224,6 +248,9 @@ Assets:
   - Handle: 10542917690917552195
     FilePath: ContentVault/Robots/Panda/assets/link0_3.obj
     Type: MeshSource
+  - Handle: 10754580528403995382
+    FilePath: Scripts/Client/Source/Perception/RgbaImage.cs
+    Type: ScriptFile
   - Handle: 10839158342888453737
     FilePath: ContentVault/Robots/Panda/assets/link6_0.obj
     Type: MeshSource
@@ -284,6 +311,9 @@ Assets:
   - Handle: 14326565068299028931
     FilePath: ContentVault/Robots/Panda/assets/link0_2.obj
     Type: MeshSource
+  - Handle: 14332222690031767557
+    FilePath: Scripts/Client/Source/Perception/PinholeCamera.cs
+    Type: ScriptFile
   - Handle: 14420857588578391741
     FilePath: ContentVault/Robots/Panda/assets/link6_11.obj
     Type: MeshSource
