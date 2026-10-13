@@ -170,7 +170,7 @@ namespace LuckySortStack.Episodes
 		[Group("Benchmark")] [ClampValue(1, 1000)]
 		[Tooltip("Episodes to run in this Play session, on seeds Seed, Seed+1, … (must be >= 0 when more than 1). " +
 			"Between episodes the scene is reset in place. 1 = a single episode, as before.")]
-		public int BenchmarkEpisodes = 1;
+		public int BenchmarkEpisodes = 3;
 
 		[Group("Debug")]
 		[Tooltip("Reset spike: lay out a few consecutive seeds via the in-Play reset and check each placement, " +
